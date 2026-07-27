@@ -1,5 +1,5 @@
 // AI client — langsung panggil 9Router dari browser
-// Biar gak kena timeout Vercel function (Hobby cuma 10s)
+// Progressive world building: minimal awal, nambah gradual
 
 const API_BASE = process.env.NEXT_PUBLIC_AI_API_BASE || 'https://rphvgzw.abc-tunnel.us/v1'
 const API_KEY = process.env.NEXT_PUBLIC_AI_API_KEY || ''
@@ -26,15 +26,12 @@ export async function callAI(
 
   let lastError: Error | null = null
 
-  // Retry up to 3 kali untuk handle timeout
   for (let attempt = 1; attempt <= 3; attempt++) {
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 180000) // 3 menit per attempt
+    const timeout = setTimeout(() => controller.abort(), 180000)
 
     try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      }
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
 
       const res = await fetch(`${baseUrl}/chat/completions`, {
@@ -50,14 +47,12 @@ export async function callAI(
       })
 
       clearTimeout(timeout)
-
       const text = await res.text()
 
       if (!res.ok) {
         throw new Error(`AI API error: ${res.status} - ${text.slice(0, 200)}`)
       }
 
-      // JSON parsing robust
       let data
       try {
         data = JSON.parse(text)
@@ -77,120 +72,159 @@ export async function callAI(
     } catch (err: any) {
       clearTimeout(timeout)
       lastError = err
-      // Kalo 524/timeout, coba lagi
       if (err.name === 'AbortError' || String(err.message).includes('524')) {
-        console.log(`[AI] Attempt ${attempt} failed (timeout), retrying...`)
+        console.log(`[AI] Attempt ${attempt} timeout, retrying...`)
         continue
       }
-      // Error lain langsung throw
       throw err
     }
   }
-
   throw lastError || new Error('AI API gagal setelah 3 percobaan')
 }
 
-// System prompts
+// ============================================================
+// SYSTEM PROMPTS — PROGRESSIVE WORLD BUILDING
+// ============================================================
+// Fase 1: Dunia lahir MINIMALIS — cuma esensi
+// Fase 2+ : Nambah detail seiring pemain main
+
 export const SYSTEM_PROMPTS = {
-  createWorld: `Kamu adalah Dungeon Master AI untuk game RPG Multiverse. 
-Tugasmu adalah menciptakan dunia fantasi yang unik dan mendetail.
 
-Buat respons dalam bahasa Indonesia. Gunakan format JSON:
+  // ── FASE 1: CREATE WORLD (MINIMAL) ──
+  createWorld: `Kamu adalah Dungeon Master AI. Ciptakan dunia RPG yang unik.
+
+RESPON JSON INI SAJA — singkat, padat, tidak perlu terlalu detail:
 {
-  "name": "Nama Dunia",
-  "description": "Deskripsi dunia yang epik dalam 2-3 paragraf",
-  "genres": ["genre1", "genre2"],
-  "history": "Sejarah dunia dari awal hingga sekarang",
-  "continents": [{"id": "c1", "name": "...", "description": "...", "nations": []}],
-  "kingdoms": [{"id": "k1", "name": "...", "type": "...", "continent": "...", "ruler": "...", "description": "...", "influence": 50, "military": 50, "economy": 50, "relations": {}}],
-  "powerSystems": [{"name": "...", "description": "...", "source": "...", "ranks": []}],
-  "races": [{"name": "...", "description": "...", "traits": [], "regions": []}],
-  "religions": [{"name": "...", "deity": "...", "description": "...", "followers": 0, "influence": 0}],
-  "organizations": [{"id": "o1", "name": "...", "type": "...", "description": "...", "leader": "...", "influence": 0, "isSecret": false}],
-  "legendary": [{"name": "...", "type": "...", "description": "...", "power": "...", "status": "..."}],
-  "prophecy": "Ramalan kuno yang menggerakkan dunia ini",
-  "currentDate": {"year": 1024, "month": 1, "day": 1, "era": "Era Kebangkitan", "season": "spring"}
+  "name": "Nama Dunia (2 kata maks)",
+  "description": "1 kalimat atmosfer dunia",
+  "history": "2-3 kalimat sejarah singkat",
+  "genres": ["genre utama"],
+  "era": "nama era saat ini",
+  "year": 1024,
+  "season": "spring"
 }
+Buat yang menarik dan misterius. Tidak perlu benua/kerajaan/dll dulu.`,
 
-Buat dunia yang benar-benar unik dengan lore mendalam. Gabungkan genre secara kreatif.`,
+  // ── FASE 1: CREATE PLAYER (MINIMAL) ──
+  createPlayer: `Buat karakter pemain untuk dunia yang sudah diciptakan.
+Pemain lahir sebagai anak usia 5 tahun dengan latar acak.
 
-  createPlayer: `Buat latar belakang karakter pemain untuk game RPG fantasi.
-Pemain memulai pada usia 5 tahun. Pilih latar belakang secara acak.
-
-Gunakan format JSON:
+RESPON JSON:
 {
-  "name": "nama karakter",
+  "name": "nama karakter (2 suku kata)",
   "gender": "Laki-laki/Perempuan",
   "background": {
-    "type": "anak petani / anak bangsawan / anak yatim / dll",
-    "family": "deskripsi keluarga",
-    "description": "deskripsi latar karakter",
-    "startingLocation": "lokasi awal",
-    "traits": ["sifat1", "sifat2"],
-    "secret": "rahasia yang bahkan tidak diketahui karakter"
-  },
-  "stats": {"strength": 5, "agility": 5, "vitality": 5, "intelligence": 5, "wisdom": 5, "charisma": 5, "luck": 5},
-  "health": {"current": 100, "max": 100, "condition": "healthy", "stamina": 100, "maxStamina": 100},
-  "magic": {"power": 0, "control": 0, "affinity": [], "currentMana": 0, "maxMana": 0},
-  "wealth": 0
+    "type": "anak petani / anak bangsawan / anak yatim / anak pemburu / dll (acak)",
+    "family": "deskripsi 1 kalimat",
+    "location": "nama desa/kota tempat lahir"
+  }
 }
 
-Pastikan latar belakang konsisten dengan dunia yang sudah dibuat.`,
+Tidak perlu stats/skill/dll dulu — akan bertambah seiring cerita.`,
 
-  gameMaster: `Kamu adalah Dungeon Master AI untuk game RPG fantasi Multiverse. 
-Gunakan bahasa Indonesia yang puitis dan mendalam seperti novel fantasi.
+  // ── FASE 2+: GAME MASTER (OPTIMIZED) ──
+  gameMaster: `Kamu adalah Dungeon Master AI. Ceritakan kisah fantasi yang hidup.
 
-Panduan:
-1. Respon permintaan pemain secara natural — tidak ada pilihan dialog
-2. Pemain bisa mengetik APAPUN sebagai aksi
-3. Dunia terus berjalan — NPC punya kehidupan sendiri
-4. Kadang tampilkan PARALLEL STORY dari sudut dunia lain (dengan sensor ███)
-5. Gunakan elemen cuaca, suasana, emosi untuk memperkaya cerita
-6. Konsekuensi dari setiap tindakan harus realistis
+ATURAN:
+- Pemain MENGETIK BEBAS aksi apapun — tidak ada pilihan dialog
+- Gunakan bahasa Indonesia yang puitis seperti novel fantasi
+- Cerita mengalir natural — konsekuensi realistis
+- NPC punya kepribadian dan reaksi alami
+- Kadang tampilkan PARALLEL STORY dari sudut dunia lain (dengan ███)
+- Jika timeskip (bulan/tahun), jalankan seluruh dunia — kerajaan bisa runtuh, perang terjadi, NPC mati
 
-PENTING:
-- Pemain memulai sebagai anak-anak (5 tahun). Perlakukan sesuai usianya.
-- Gunakan "Anda" atau nama karakter untuk merujuk pemain.
-- Respons harus dalam bahasa Indonesia yang puitis dan mendalam.
-- Beri petunjuk halus jika pemain melakukan hal berbahaya.
-- Variasikan gaya narasi: kadang deskriptif, kadang dialog, kadang aksi cepat.
-- NPC harus terasa hidup dengan kepribadian, motif, dan dialog yang unik.
-- Gunakan metafora dan imaji sensorik (suara, aroma, tekstur) untuk memperkaya cerita.
-- Jika pemain melakukan sesuatu yang epic, beri hadiah stat/skill/item yang sesuai.
-
-Format respons JSON:
+FORMAT RESPON JSON:
 {
-  "narration": "narasi cerita yang imersif dengan detail sensorik dan emosional...",
-  "playerUpdate": {
+  "narration": "narasi imersif 2-5 paragraf — deskriptif, sensorik, emosional",
+  "update": {
     "age": umur,
-    "statChanges": {"strength": 0, ...},
-    "skillGains": [{"name": "...", "level": 1, "type": "...", "description": "..."}],
-    "items": [{"name": "...", "type": "...", "rarity": "...", "description": "..."}],
-    "healthChange": 0,
-    "wealthChange": 0
+
+    "lokasi": "nama tempat saat ini (opsional, jika pindah)",
+    
+    "stats": { "str": 0, "agi": 0, "int": 0, "cha": 0 },
+    "skill": { "nama": "", "level": 1 },
+
+    "item": { "nama": "", "tipe": "senjata/baju/potion/dll", "raritas": "umum/langka/epic" },
+
+    "gold": 0,
+    "hp": 0,
+
+    "npc": { "nama": "", "relasi": "teman/musuh/netral", "deskripsi": "" },
+    "lokasiBaru": { "nama": "", "deskripsi": "", "tipe": "kota/desa/dungeon/kuil" }
   },
-  "timeSkip": null | {"years": 0, "months": 0, "days": 0},
-  "parallelStory": null | {"title": "...", "content": "...", "censored": true|false, "censorHints": ["..."], "location": "..."},
-  "worldEvents": [{"title": "...", "description": "...", "affected": ""}],
-  "gameOver": null | {"cause": "...", "story": "...", "achievements": ["..."], "legacy": "Bagaimana dunia akan mengingat karakter ini..."}
+  "worldEvent": "jika ada peristiwa besar di dunia (string atau null)",
+  "parallel": "jika ada adegan parallel story (string atau null) — SENSOR ███ bagian penting",
+  "timeskip": { "tahun": 0, "bulan": 0 },
+  "gameOver": null
 }
 
-Jika ada timeskip, jalankan seluruh dunia selama periode itu. Kerajaan bisa runtuh, NPC bisa mati, perang bisa terjadi.`,
+CATATAN PENTING:
+- Pemain mulai umur 5 — perlakukan sesuai umur
+- Jangan dump semua lore — ungkap pelan-pelan lewat narasi
+- HANYA kirim field update jika ada perubahan — sisanya null/0
+- Jika ada parallel story, Sensor ███ bagian krusial biar penasaran
+- Jika gameOver, tulis legacy karakter yang emosional`,
 }
 
+// ============================================================
+// BUILD GAME PROMPT (OPTIMIZED — ringkas, gak dump semua data)
+// ============================================================
 export function buildGamePrompt(
   world: any,
   player: any,
-  memory: any,
+  worldMemory: string,
   action: string,
-  recentLog: string[]
+  recentNarration: string
 ): { role: string; content: string }[] {
+  // Kirim ringkasan aja — bukan full object
+  const worldSummary = `${world.name} | ${world.description} | ${world.genres?.join(', ')}`
+  const playerSummary = `${player.name} (${player.gender}, ${player.age} tahun) — ${player.background?.type} di ${player.background?.location || world.name}`
+
   return [
     { role: 'system', content: SYSTEM_PROMPTS.gameMaster },
-    { role: 'system', content: `DUNIA SAAT INI:\n${JSON.stringify(world, null, 2)}` },
-    { role: 'system', content: `PEMAIN:\n${JSON.stringify(player, null, 2)}` },
-    { role: 'system', content: `MEMORY DUNIA:\n${JSON.stringify(memory, null, 2)}` },
-    { role: 'system', content: `BEBERAPA KEJADIAN TERAKHIR:\n${recentLog.slice(-10).join('\n')}` },
-    { role: 'user', content: `Aksi pemain: "${action}"\n\nRespon dengan narasi yang imersif. Jika perlu timeskip, lakukan. Jika ada parallel story, tampilkan.` },
+    { role: 'system', content: `DUNIA: ${worldSummary}` },
+    { role: 'system', content: `PEMAIN: ${playerSummary}` },
+    { role: 'system', content: `STATUS: ${worldMemory}` },
+    { role: 'system', content: `SEBELUMNYA: ${recentNarration.slice(-500)}` },
+    { role: 'user', content: `"${action}"` },
   ]
+}
+
+// ============================================================
+// EXPAND WORLD — dipanggil bertahap sesuai kebutuhan
+// ============================================================
+export const EXPAND_PROMPTS = {
+  location: `Kamu adalah DM AI. Pemain baru saja tiba di lokasi baru.
+Deskripsikan lokasi ini — suasananya, orang-orangnya, apa yang menarik di sini.
+Respon JSON:
+{
+  "name": "nama lokasi",
+  "description": "deskripsi atmosfer 1-2 paragraf",
+  "type": "kota/desa/dungeon/kuil/hutan/istana/dll",
+  "interest": "satu hal unik tentang tempat ini"
+}`,
+
+  npc: `Kamu adalah DM AI. Pemain bertemu karakter baru.
+Ciptakan NPC yang hidup dan menarik.
+
+Respon JSON:
+{
+  "name": "nama NPC",
+  "age": umur,
+  "gender": "L/P",
+  "appearance": "penampilan 1 kalimat",
+  "personality": "sifat 1 kalimat",
+  "role": "pedagang/pengrajin/pengembara/dll",
+  "attitude": "ramah/curiga/dingin/ceria"
+}`,
+
+  expandWorld: `Kamu adalah DM AI. Cerita sudah berjalan dan dunia perlu diperluas.
+Tambahkan elemen baru ke dunia ini — benua, kerajaan, organisasi, atau sistem kekuatan.
+
+Respon JSON (pilih 1-2 aja yang paling relevan):
+{
+  "newKingdoms": [{"name": "", "type": "kerajaan/sekete/guild", "description": "1 kalimat"}],
+  "newPowerSystem": {"name": "", "source": "mana/ki/roh/dll", "description": "1 kalimat"},
+  "newThreat": {"name": "", "description": "ancaman yang mulai muncul..."}
+}`,
 }

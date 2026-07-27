@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useCallback, useRef, useState, useEffect } from 'react'
 import type { GameState, StoryLog } from '@/lib/types'
-import { createInitialState, buildWorldMemory } from '@/lib/game'
+import { createInitialState } from '@/lib/game'
 import { callAI, SYSTEM_PROMPTS, buildGamePrompt } from '@/lib/ai'
 import { saveGame, loadGame, listSaves, deleteSave, type SaveMeta } from '@/lib/storage'
 
@@ -23,6 +23,14 @@ interface GameContextType {
 
 const GameContext = createContext<GameContextType>(null!)
 
+function cleanJSON(text: string): string {
+  let t = text.replace(/```json\n?/gi, '').replace(/\n?```/g, '').trim()
+  const first = t.indexOf('{')
+  const last = t.lastIndexOf('}')
+  if (first === -1 || last === -1) throw new Error('AI tidak menghasilkan JSON valid')
+  return t.slice(first, last + 1)
+}
+
 export function GameProvider({ children }: { children: React.ReactNode }) {
   const [gameState, setGameState] = useState<GameState | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -30,73 +38,68 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [saves, setSaves] = useState<SaveMeta[]>([])
   const gameRef = useRef(gameState)
 
-  // Sync ref with state outside render
-  useEffect(() => {
-    gameRef.current = gameState
-  }, [gameState])
+  useEffect(() => { gameRef.current = gameState }, [gameState])
 
   const refreshSaves = useCallback(async () => {
-    const s = await listSaves()
-    setSaves(s)
+    setSaves(await listSaves())
   }, [])
 
+  // ── NEW GAME — MINIMALIS ──
   const newGame = useCallback(async () => {
     setIsLoading(true)
+    setError(null)
     try {
-      // Step 1: Create world - pake max tokens gede
-      const worldRes = await callAI([{ role: 'system', content: SYSTEM_PROMPTS.createWorld }], { temperature: 0.9, maxTokens: 8192 })
-      
-      // Bersihin response dari markdown JSON formatting
-      let cleaned = worldRes.content.replace(/```json\n?/g, '').replace(/\n?```/g, '').trim()
-      // Cari JSON valida - ambil dari { pertama sampai } terakhir
-      const firstBrace = cleaned.indexOf('{')
-      const lastBrace = cleaned.lastIndexOf('}')
-      if (firstBrace === -1 || lastBrace === -1) throw new Error('AI tidak menghasilkan JSON yang valid')
-      cleaned = cleaned.slice(firstBrace, lastBrace + 1)
-      
-      const worldData = JSON.parse(cleaned)
-      
+      // Step 1: Bikin dunia minimal
+      const worldRes = await callAI(
+        [{ role: 'system', content: SYSTEM_PROMPTS.createWorld }],
+        { temperature: 0.9, maxTokens: 1024 }
+      )
+      const worldData = JSON.parse(cleanJSON(worldRes.content))
+
+      // Step 2: Bikin player minimal
       const playerRes = await callAI([
         { role: 'system', content: SYSTEM_PROMPTS.createPlayer },
-        { role: 'system', content: `Dunia: ${JSON.stringify(worldData)}` },
-      ], { temperature: 0.8, maxTokens: 2048 })
-      const playerData = JSON.parse(playerRes.content.replace(/```json\n?|\n?```/g, '').trim())
+        { role: 'system', content: `Dunia ini: ${worldData.name} — ${worldData.description}` },
+      ], { temperature: 0.8, maxTokens: 1024 })
+      const playerData = JSON.parse(cleanJSON(playerRes.content))
+
+      // Step 3: Generate narasi kelahiran
+      const birthRes = await callAI([
+        { role: 'system', content: `Kamu narator RPG. Buat 1 paragraf kelahiran ${playerData.name} di dunia ${worldData.name}. ${worldData.description}. Latar: ${playerData.background.type} dari ${playerData.background.location}. Suasana puitis.` },
+        { role: 'user', content: 'Tulis opening yang epik dan emosional.' },
+      ], { temperature: 0.9, maxTokens: 1024 })
+      const birthNarration = birthRes.content
 
       const state = createInitialState()
+      state.id = crypto.randomUUID()
       state.world = worldData
       state.player = {
         id: crypto.randomUUID(),
         name: playerData.name,
         age: 5,
-        gender: playerData.gender,
-        birthDate: { ...worldData.currentDate, year: worldData.currentDate.year - 5 },
-        background: playerData.background,
-        location: playerData.background.startingLocation,
-        kingdom: worldData.kingdoms?.[0]?.id || '',
-        title: 'Anak-anak',
-        reputation: 0,
-        stats: playerData.stats,
+        gender: playerData.gender || 'Laki-laki',
+        background: playerData.background || { type: 'anak petani', family: 'keluarga sederhana', location: 'desa terpencil' },
+        location: playerData.background?.location || 'Unknown',
+        stats: { str: 5, agi: 5, int: 5, cha: 5 },
+        health: 100,
+        wealth: 0,
         skills: [],
         inventory: [],
-        relationships: [],
-        quests: [],
-        health: playerData.health,
-        wealth: playerData.wealth || 0,
-        magic: playerData.magic || { power: 0, control: 0, affinity: [], currentMana: 0, maxMana: 0 },
+        title: null,
       }
+      state.currentDate = { year: worldData.year || 1024, month: 1, day: 1, era: worldData.era || 'Era Baru', season: worldData.season || 'spring' }
 
-      const intro: StoryLog = {
+      state.storyLog = [{
         id: crypto.randomUUID(),
-        date: { ...worldData.currentDate },
+        date: { ...state.currentDate },
         playerAge: 5,
-        content: `Kamu terlahir di dunia ${worldData.name}. ${worldData.description}. ${playerData.background.description}. Kamu tinggal bersama ${playerData.background.family}.`,
+        content: birthNarration || `Kamu terlahir sebagai ${playerData.background.type} di ${playerData.background.location} di dunia ${worldData.name}.`,
         type: 'system',
-        location: playerData.background.startingLocation,
-      }
-      state.storyLog = [intro]
-      state.npcs = []
-      state.id = crypto.randomUUID()
-      
+        location: playerData.background?.location || 'Unknown',
+      }]
+      state.worldMemory = `[${worldData.name}] ${worldData.history || worldData.description}`
+      state.narrationBuffer = birthNarration || ''
+
       setGameState(state)
       await saveGame(state.id, state)
     } catch (e: unknown) {
@@ -105,132 +108,133 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false)
   }, [])
 
+  // ── SUBMIT ACTION ──
   const submitAction = useCallback(async (action: string) => {
     const state = gameRef.current
     if (!state || !state.isAlive) return
     setIsLoading(true)
     setError(null)
     try {
-      const memory = buildWorldMemory(state)
-      const recentLogs = state.storyLog.slice(-10).map(l => `[${l.type}] ${l.content}`)
-      const messages = buildGamePrompt(state.world, state.player, memory, action, recentLogs)
-      const res = await callAI(messages, { temperature: 0.85, maxTokens: 4096 })
-      
-      const parsed = JSON.parse(res.content.replace(/```json\n?|\n?```/g, '').trim())
-      const newState = { ...state }
-      
-      // Update player
-      if (parsed.playerUpdate) {
-        const upd = parsed.playerUpdate
-        newState.player = { ...newState.player }
-        if (upd.age) newState.player.age = upd.age
-        if (upd.statChanges) {
-          newState.player.stats = { ...newState.player.stats }
-          Object.entries(upd.statChanges).forEach(([k, v]) => {
-            if (typeof v === 'number') {
-              const s = newState.player.stats as unknown as Record<string, number>
-              s[k] = Math.max(0, Math.min(100, s[k] + v))
-            }
-          })
-        }
-        if (upd.skillGains) {
-          newState.player.skills = [...(newState.player.skills || [])]
-          upd.skillGains.forEach((sg: { name: string; level?: number; type?: string; description?: string }) => {
-            const existing = newState.player.skills.find(s => s.name === sg.name)
-            if (existing) existing.level += sg.level || 1
-            else newState.player.skills.push({ name: sg.name, level: sg.level || 1, maxLevel: 100, type: (sg.type || 'combat') as 'combat' | 'magic' | 'craft' | 'social' | 'knowledge', description: sg.description || '' })
-          })
-        }
-        if (upd.items) {
-          newState.player.inventory = [...(newState.player.inventory || [])]
-          upd.items.forEach((it: { name: string; type?: string; rarity?: string; description?: string; value?: number }) => {
-            newState.player.inventory.push({
-              id: crypto.randomUUID(),
-              name: it.name,
-              type: (it.type || 'material') as 'weapon' | 'armor' | 'potion' | 'scroll' | 'artifact' | 'material' | 'food' | 'treasure' | 'quest',
-              rarity: (it.rarity || 'common') as 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary',
-              description: it.description || '',
-              value: it.value || 0,
-              equipped: false,
-            })
-          })
-        }
-        if (upd.healthChange) newState.player.health.current = Math.max(0, Math.min(newState.player.health.max, newState.player.health.current + upd.healthChange))
-        if (upd.wealthChange) newState.player.wealth += upd.wealthChange
+      const messages = buildGamePrompt(
+        state.world,
+        { name: state.player.name, gender: state.player.gender, age: state.player.age, background: state.player.background, location: state.player.location },
+        state.worldMemory || '',
+        action,
+        state.narrationBuffer || ''
+      )
+      const res = await callAI(messages, { temperature: 0.85, maxTokens: 2048 })
+      const parsed = JSON.parse(cleanJSON(res.content))
+
+      const newState = { ...state, player: { ...state.player } }
+      const upd = parsed.update || {}
+
+      // Update player dari response
+      if (upd.age) newState.player.age = upd.age
+      if (upd.lokasi) newState.player.location = upd.lokasi
+      if (upd.stats) {
+        newState.player.stats = { ...newState.player.stats, ...upd.stats }
+      }
+      if (upd.gold) newState.player.wealth = (newState.player.wealth || 0) + upd.gold
+      if (upd.hp) newState.player.health = Math.max(0, Math.min(100, upd.hp))
+      if (upd.skill && upd.skill.nama) {
+        if (!newState.player.skills) newState.player.skills = []
+        const exist = (newState.player.skills || []).findIndex((s: any) => s.name === upd.skill.nama)
+        if (exist >= 0) newState.player.skills[exist] = { ...newState.player.skills[exist], level: (newState.player.skills[exist].level || 1) + (upd.skill.level || 1) }
+        else newState.player.skills = [...(newState.player.skills || []), { name: upd.skill.nama, level: upd.skill.level || 1 }]
+      }
+      if (upd.item && upd.item.nama) {
+        newState.player.inventory = [...(newState.player.inventory || []), { id: crypto.randomUUID(), name: upd.item.nama, type: upd.item.tipe || 'material', rarity: upd.item.raritas || 'common', description: '', value: 0, equipped: false }]
+      }
+      if (upd.lokasiBaru && upd.lokasiBaru.nama) {
+        newState.player.location = upd.lokasiBaru.nama
       }
 
+      // NPC
+      const npcEntry = upd.npc?.nama ? `[NPC] ${upd.npc.nama}: ${upd.npc.relasi} — ${upd.npc.deskripsi}` : null
+
+      // Log narasi
       const logEntry: StoryLog = {
         id: crypto.randomUUID(),
-        date: { ...newState.world.currentDate },
+        date: { ...(state.currentDate || { year: 1024, month: 1, day: 1 }) },
         playerAge: newState.player.age,
         content: parsed.narration || action,
         type: 'main',
         location: newState.player.location,
       }
       newState.storyLog = [...newState.storyLog, logEntry]
-
-      if (parsed.timeSkip) {
-        const ts = parsed.timeSkip
-        newState.world.currentDate.year += ts.years || 0
-        newState.world.currentDate.month += ts.months || 0
-        newState.world.currentDate.day += ts.days || 0
-        newState.player.age += ts.years || 0
+      if (npcEntry) {
         newState.storyLog.push({
           id: crypto.randomUUID(),
-          date: { ...newState.world.currentDate },
+          date: { ...logEntry.date },
           playerAge: newState.player.age,
-          content: `${ts.years || 0} tahun, ${ts.months || 0} bulan, ${ts.days || 0} hari telah berlalu...`,
+          content: npcEntry,
+          type: 'npc',
+          location: newState.player.location,
+        })
+      }
+
+      // Timeskip
+      if (parsed.timeskip) {
+        const ts = parsed.timeskip
+        newState.player.age += ts.tahun || 0
+        newState.storyLog.push({
+          id: crypto.randomUUID(),
+          date: { ...logEntry.date },
+          playerAge: newState.player.age,
+          content: `${ts.tahun || 0} tahun berlalu...`,
           type: 'timeSkip',
           location: newState.player.location,
         })
       }
 
-      if (parsed.parallelStory) {
-        newState.parallelStories = [...newState.parallelStories, {
+      // Parallel story
+      if (parsed.parallel) {
+        newState.storyLog.push({
           id: crypto.randomUUID(),
-          title: parsed.parallelStory.title,
-          content: parsed.parallelStory.content,
-          censored: parsed.parallelStory.censored || false,
-          censorHints: parsed.parallelStory.censorHints || [],
-          location: parsed.parallelStory.location || 'Unknown',
-          date: { ...newState.world.currentDate },
-        }]
+          date: { ...logEntry.date },
+          playerAge: newState.player.age,
+          content: `[DI TEMPAT LAIN] ${parsed.parallel}`,
+          type: 'parallel',
+          location: '???',
+        })
       }
 
-      if (parsed.worldEvents) {
-        newState.worldEvents = [...newState.worldEvents, ...parsed.worldEvents.map((we: { title: string; description: string; affected?: string }) => ({
+      // World event
+      if (parsed.worldEvent) {
+        newState.storyLog.push({
           id: crypto.randomUUID(),
-          date: { ...newState.world.currentDate },
-          title: we.title,
-          description: we.description,
-          affectedKingdoms: we.affected ? [we.affected] : [],
-          affectedNPCs: [] as string[],
-          severity: 'major' as const,
-          type: 'political' as const,
-          resolved: false,
-        }))]
+          date: { ...logEntry.date },
+          playerAge: newState.player.age,
+          content: `[PERISTIWA DUNIA] ${parsed.worldEvent}`,
+          type: 'world',
+          location: '???',
+        })
+        newState.worldMemory = (newState.worldMemory || '') + ` | ${parsed.worldEvent}`
       }
 
+      // Narration buffer buat context next turn
+      newState.narrationBuffer = parsed.narration || action
+
+      // Game over
       if (parsed.gameOver) {
         newState.isAlive = false
         newState.deathRecord = {
-          date: { ...newState.world.currentDate },
+          date: { ...logEntry.date },
           age: newState.player.age,
-          cause: parsed.gameOver.cause,
-          story: parsed.gameOver.story,
-          achievements: parsed.gameOver.achievements || [],
+          cause: parsed.gameOver.cause || 'Unknown',
+          story: parsed.gameOver.story || '',
+          achievements: [],
           legacy: parsed.gameOver.legacy || '',
         }
       }
 
       newState.updatedAt = Date.now()
       newState.playTime += 1000
-      newState.currentChapter++
-      
+
       setGameState(newState)
       await saveGame(newState.id, newState)
     } catch (e: unknown) {
-      setError(`AI merespon: ${e instanceof Error ? e.message : String(e)}`)
+      setError(`AI error: ${e instanceof Error ? e.message : String(e)}`)
     }
     setIsLoading(false)
   }, [])

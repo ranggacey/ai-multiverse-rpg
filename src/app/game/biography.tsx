@@ -12,18 +12,18 @@ interface BiographyProps {
 }
 
 export default function Biography({ gameState, onClose, onExport, onReturn }: BiographyProps) {
-  const { player, world, storyLog, deathRecord, parallelStories, currentChapter, playTime } = gameState
+  const { player, world, storyLog, deathRecord, currentChapter, playTime } = gameState
 
   if (!deathRecord) return null
 
   // Calculate lifetime stats
   const storiesTold = storyLog.length
-  const parallelCount = parallelStories.length
-  const relationshipsCount = player.relationships.length
-  const itemsCollected = player.inventory.length
-  const skillsLearned = player.skills.length
-  const questsCompleted = player.quests.filter(q => q.status === 'completed').length
-  const questsFailed = player.quests.filter(q => q.status === 'failed').length
+  const parallelCount = 0
+  const relationshipsCount = 0
+  const itemsCollected = (player.inventory || []).length
+  const skillsLearned = (player.skills || []).length
+  const questsCompleted = 0
+  const questsFailed = 0
 
   // Timeline: filter significant events
   const timeline = storyLog.filter(l => 
@@ -136,14 +136,14 @@ export default function Biography({ gameState, onClose, onExport, onReturn }: Bi
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
-                { label: 'STR', value: player.stats.strength },
-                { label: 'AGI', value: player.stats.agility },
-                { label: 'VIT', value: player.stats.vitality },
-                { label: 'INT', value: player.stats.intelligence },
-                { label: 'WIS', value: player.stats.wisdom },
-                { label: 'CHA', value: player.stats.charisma },
-                { label: 'LUK', value: player.stats.luck },
-                { label: 'Kekayaan', value: `${player.wealth}` },
+                { label: 'STR', value: player.stats?.strength ?? 0 },
+                { label: 'AGI', value: player.stats?.agility ?? 0 },
+                { label: 'VIT', value: player.stats?.vitality ?? 0 },
+                { label: 'INT', value: player.stats?.intelligence ?? 0 },
+                { label: 'WIS', value: player.stats?.wisdom ?? 0 },
+                { label: 'CHA', value: player.stats?.charisma ?? 0 },
+                { label: 'LUK', value: player.stats?.luck ?? 0 },
+                { label: 'Kekayaan', value: `${player.wealth ?? 0}` },
               ].map((stat, i) => (
                 <div key={i} className="flex items-center justify-between px-3 py-2 bg-zinc-800/30 rounded text-xs">
                   <span className="text-zinc-500">{stat.label}</span>
