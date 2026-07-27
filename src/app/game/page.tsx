@@ -4,14 +4,14 @@ import { GameProvider, useGame } from '@/lib/game-provider'
 import { formatDate, formatTimePlayed } from '@/lib/game'
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, User, Map, Scroll, Download, Upload, Menu, X, Swords, Compass, Heart, ShoppingBag, Handshake, Eye, Users, Trophy, CloudSun, Moon, Sun } from 'lucide-react'
+import { ArrowLeft, User, Map, Scroll, Download, Upload, Menu, X, Swords, Compass, Heart, ShoppingBag, Handshake, Eye, Users, Trophy, CloudSun, Moon, Sun, Sparkles, FlaskConical, Flag, Shield, Zap, Droplets, Sword } from 'lucide-react'
 import Biography from './biography'
-import { WEATHER_ICONS, TIME_ICONS, type Weather, type TimeOfDay } from '@/lib/types'
+import { WEATHER_ICONS, TIME_ICONS, type Weather, type TimeOfDay, type CombatState, type CombatEnemy, type CombatLogEntry } from '@/lib/types'
 
-type GameTab = 'stats' | 'inventory' | 'world' | 'log'
+type GameTab = 'stats' | 'inventory' | 'world' | 'log' | 'combat'
 
 function GameUI() {
-  const { gameState, isLoading, error, submitAction, saveCurrentGame, exportSave } = useGame()
+  const { gameState, isLoading, error, submitAction, saveCurrentGame, exportSave, startCombat, combatAction, endCombat } = useGame()
   const [action, setAction] = useState('')
   const [activeTab, setActiveTab] = useState<GameTab>('stats')
   const [showSidebar, setShowSidebar] = useState(true)
@@ -41,12 +41,12 @@ function GameUI() {
     </div>
   )
 
-  const { player, world, storyLog, isAlive, deathRecord } = gameState
+  const { player, world, storyLog, isAlive, deathRecord, combat } = gameState
 
   const quickActions = [
     { label: 'Jelajahi', icon: Compass, act: 'Aku ingin menjelajahi daerah sekitar' },
     { label: 'Bicara', icon: Handshake, act: 'Aku mencari seseorang untuk diajak bicara' },
-    { label: 'Latihan', icon: Swords, act: 'Aku ingin berlatih' },
+    { label: 'Bertarung', icon: Swords, act: 'Aku ingin mencari pertarungan' },
     { label: 'Istirahat', icon: Heart, act: 'Aku beristirahat sebentar' },
     { label: 'Beli', icon: ShoppingBag, act: 'Aku mencari tempat berdagang' },
   ]
@@ -59,6 +59,47 @@ function GameUI() {
   }
 
   const showT = (msg: string) => { setShowToast(msg); setTimeout(() => setShowToast(''), 2000) }
+
+  // Combat helpers
+  const getCombatActionButtons = () => {
+    if (!combat?.inCombat || !combat.enemy) return []
+    return [
+      { label: 'Serang', icon: Swords, action: () => combatAction('attack'), color: 'text-red-400 hover:text-red-300' },
+      { label: 'Skill', icon: Sparkles, action: () => combatAction('skill'), color: 'text-purple-400 hover:text-purple-300', disabled: !player.skills?.length },
+      { label: 'Item', icon: FlaskConical, action: () => combatAction('item'), color: 'text-emerald-400 hover:text-emerald-300', disabled: !player.inventory?.some(i => i.healAmount || (i.spellType && i.attack)) },
+      { label: 'Lari', icon: Flag, action: () => combatAction('flee'), color: 'text-amber-400 hover:text-amber-300' },
+    ]
+  }
+
+  // Trigger combat from quick action
+  const handleQuickCombat = () => {
+    if (!combat?.inCombat) {
+      // Create a random enemy based on player level
+      const level = player.level || 1
+      const enemyTypes = [
+        { name: 'Goblin Penjelajah', desc: 'Goblin kecil dengan pedang karat', hp: 30 + level * 10, atk: 8 + level * 2, def: 3 + level, spd: 5, xp: 25, loot: ['Pedang Karat', 'Kulit Goblin'], skills: [] },
+        { name: 'Serigala Hutan', desc: 'Serigala liar yang kelaparan', hp: 40 + level * 12, atk: 10 + level * 3, def: 4 + level, spd: 8, xp: 35, loot: ['Daging Serigala', 'Kuku Tajam'], skills: [] },
+        { name: 'Bandit Jalanan', desc: 'Pembegal yang menunggu mangsa', hp: 50 + level * 15, atk: 12 + level * 3, def: 6 + level, spd: 6, xp: 50, loot: ['Uang Kecil', 'Perisai Kayu'], skills: [{ name: 'Serangan Cepat', type: 'attack' as const, damage: 15, description: 'Serangan cepat dengan pisau', cooldown: 2, currentCooldown: 0 }] },
+        { name: 'Skeleton Prajurit', desc: 'Tulang kering bersenjatakan pedang', hp: 60 + level * 18, atk: 15 + level * 4, def: 8 + level, spd: 4, xp: 75, loot: ['Tulang Bersih', 'Pedang Tua'], skills: [{ name: 'Tusaran Tulang', type: 'attack' as const, damage: 20, description: 'Tusukan yang mengabaikan pertahanan', cooldown: 3, currentCooldown: 0 }] },
+      ]
+      const enemyTemplate = enemyTypes[Math.floor(Math.random() * enemyTypes.length)]
+      const enemy: CombatEnemy = {
+        id: crypto.randomUUID(),
+        name: enemyTemplate.name,
+        description: enemyTemplate.desc,
+        level: Math.max(1, level + Math.floor(Math.random() * 3) - 1),
+        hp: enemyTemplate.hp,
+        maxHp: enemyTemplate.hp,
+        attack: enemyTemplate.atk,
+        defense: enemyTemplate.def,
+        speed: enemyTemplate.spd,
+        xpReward: enemyTemplate.xp,
+        loot: enemyTemplate.loot,
+        skills: enemyTemplate.skills.map(s => ({ ...s, currentCooldown: 0 })),
+      }
+      startCombat(enemy)
+    }
+  }
 
   return (
     <div className="h-screen bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden">
@@ -181,6 +222,7 @@ function GameUI() {
                 { key: 'stats' as GameTab, label: 'Status', icon: User },
                 { key: 'inventory' as GameTab, label: 'Item', icon: Scroll },
                 { key: 'world' as GameTab, label: 'Dunia', icon: Map },
+                { key: 'combat' as GameTab, label: 'Pertarungan', icon: Swords },
                 { key: 'log' as GameTab, label: 'Log', icon: Scroll },
               ].map(tab => (
                 <button key={tab.key} onClick={() => setActiveTab(tab.key)}

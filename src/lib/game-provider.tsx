@@ -1,8 +1,8 @@
 'use client'
 
 import { createContext, useContext, useCallback, useRef, useState, useEffect } from 'react'
-import type { GameState, StoryLog } from '@/lib/types'
-import { createInitialState } from '@/lib/game'
+import type { GameState, StoryLog, CombatState, CombatEnemy, CombatLogEntry } from '@/lib/types'
+import { createInitialState, calculatePlayerMaxHp, calculatePlayerMaxMana, calculatePlayerAttack, calculatePlayerDefense, calculateXpToNext, addXp } from '@/lib/game'
 import { callAI, buildGamePrompt } from '@/lib/ai'
 import { saveGame, loadGame, listSaves, deleteSave, type SaveMeta } from '@/lib/storage'
 
@@ -19,6 +19,10 @@ interface GameContextType {
   submitAction: (action: string) => Promise<void>
   exportSave: () => Promise<void>
   importSave: (json: string) => Promise<void>
+  // Combat
+  startCombat: (enemy: CombatEnemy) => void
+  combatAction: (action: 'attack' | 'skill' | 'item' | 'flee', skillId?: string, itemId?: string) => Promise<void>
+  endCombat: (victory: boolean) => void
 }
 
 const GameContext = createContext<GameContextType>(null!)
@@ -327,11 +331,331 @@ Suasana puitis, epik, emosional. Bahasa Indonesia yang indah.` }
     setGameState(data)
   }, [])
 
+  // ── COMBAT FUNCTIONS ──
+
+  const startCombat = useCallback((enemy: CombatEnemy) => {
+    const state = gameRef.current
+    if (!state) return
+
+    const playerMaxHp = calculatePlayerMaxHp(state.player)
+    const playerMaxMana = calculatePlayerMaxMana(state.player)
+
+    // Ensure enemy has all required fields with defaults
+    const fullEnemy: CombatEnemy = {
+      id: enemy.id || crypto.randomUUID(),
+      name: enemy.name || 'Musuh',
+      description: enemy.description || '',
+      level: enemy.level || 1,
+      hp: enemy.hp || 50,
+      maxHp: enemy.maxHp || 50,
+      attack: enemy.attack || 10,
+      defense: enemy.defense || 5,
+      speed: enemy.speed || 5,
+      xpReward: enemy.xpReward || 50,
+      loot: enemy.loot || [],
+      skills: enemy.skills || [],
+      isBoss: enemy.isBoss || false,
+    }
+
+    const newCombat: CombatState = {
+      inCombat: true,
+      enemy: fullEnemy,
+      turn: state.player.stats && (state.player.stats.agi || 5) >= (fullEnemy.speed || 5) ? 'player' : 'enemy',
+      turnCount: 0,
+      combatLog: [{
+        id: crypto.randomUUID(),
+        type: 'status',
+        message: `Pertarungan dimulai! ${fullEnemy.name} (Lv.${fullEnemy.level}) muncul!`,
+        timestamp: Date.now(),
+      }],
+      playerHp: state.player.health || playerMaxHp,
+      playerMaxHp,
+      enemyHp: fullEnemy.hp,
+      enemyMaxHp: fullEnemy.maxHp,
+      playerMana: state.player.mana || playerMaxMana,
+      playerMaxMana,
+      actionQueue: [],
+    }
+
+    const newState = { ...state, combat: newCombat, player: { ...state.player, health: state.player.health || playerMaxHp, maxHealth: playerMaxHp, mana: state.player.mana || playerMaxMana, maxMana: playerMaxMana } }
+    setGameState(newState)
+    saveGame(newState.id, newState)
+  }, [])
+
+  const addCombatLog = (combat: CombatState, entry: Omit<CombatLogEntry, 'id' | 'timestamp'>) => {
+    combat.combatLog = [...combat.combatLog, { ...entry, id: crypto.randomUUID(), timestamp: Date.now() }]
+    if (combat.combatLog.length > 50) combat.combatLog = combat.combatLog.slice(-50)
+  }
+
+  const combatAction = useCallback(async (action: 'attack' | 'skill' | 'item' | 'flee', skillId?: string, itemId?: string) => {
+    const state = gameRef.current
+    if (!state || !state.combat?.inCombat || !state.combat.enemy) return
+    if (state.combat.turn !== 'player') return
+
+    setIsLoading(true)
+    setError(null)
+
+    const combat = { ...state.combat }
+    // Ensure enemy has all required fields with defaults
+    const enemy = { 
+      ...combat.enemy,
+      hp: combat.enemy?.hp ?? 50,
+      maxHp: combat.enemy?.maxHp ?? 50,
+      attack: combat.enemy?.attack ?? 10,
+      defense: combat.enemy?.defense ?? 5,
+      speed: combat.enemy?.speed ?? 5,
+      xpReward: combat.enemy?.xpReward ?? 50,
+      loot: combat.enemy?.loot ?? [],
+      skills: combat.enemy?.skills ?? [],
+    } as CombatEnemy
+    const player = { 
+      ...state.player,
+      health: state.player.health ?? 100,
+      maxHealth: state.player.maxHealth ?? 100,
+      mana: state.player.mana ?? 50,
+      maxMana: state.player.maxMana ?? 50,
+    }
+
+    // Player turn
+    let damage = 0
+    let heal = 0
+    let manaCost = 0
+    let actionName = ''
+    let actionType: CombatLogEntry['type'] = 'player_attack'
+
+    if (action === 'attack') {
+      const playerAtk = calculatePlayerAttack(player)
+      const enemyDef = enemy.defense || 0
+      const baseDamage = Math.max(1, playerAtk - Math.floor(enemyDef * 0.5))
+      const isCrit = Math.random() < 0.1 * (1 + (player.stats?.agi || 5) / 100)
+      damage = isCrit ? Math.floor(baseDamage * 1.5) : baseDamage
+      // Variance
+      damage = Math.floor(damage * (0.85 + Math.random() * 0.3))
+      enemy.hp = Math.max(0, enemy.hp - damage)
+      actionName = 'Serangan'
+      actionType = isCrit ? 'player_crit' : 'player_attack'
+      addCombatLog(combat, { type: actionType, message: `${player.name} menyerang ${enemy.name} untuk ${damage} damage!${isCrit ? ' 💥 CRITICAL!' : ''}`, damage })
+    } else if (action === 'skill' && skillId) {
+      const skill = player.skills?.find((s: any) => s.id === skillId)
+      if (skill) {
+        // Simple skill implementation
+        const skillPower = 10 + skill.level * 5
+        const playerAtk = calculatePlayerAttack(player)
+        damage = Math.floor((playerAtk + skillPower) * (0.9 + Math.random() * 0.2))
+        manaCost = 10 + skill.level * 2
+        if ((player.mana || 0) < manaCost) {
+          addCombatLog(combat, { type: 'status', message: 'Mana tidak cukup!' })
+          setIsLoading(false)
+          return
+        }
+        player.mana = (player.mana || 0) - manaCost
+        enemy.hp = Math.max(0, enemy.hp - damage)
+        actionName = skill.name
+        actionType = 'player_skill'
+        addCombatLog(combat, { type: actionType, message: `${player.name} menggunakan ${skill.name} pada ${enemy.name} untuk ${damage} damage!`, damage })
+      }
+    } else if (action === 'item' && itemId) {
+      const inventory = player.inventory || []
+      const itemIndex = inventory.findIndex((i: any) => i.id === itemId)
+      if (itemIndex >= 0) {
+        const item = inventory[itemIndex]
+        if (item.healAmount) {
+          heal = item.healAmount
+          player.health = Math.min(player.maxHealth || combat.playerMaxHp, (player.health || 0) + heal)
+          combat.playerHp = Math.min(combat.playerMaxHp, combat.playerHp + heal)
+          actionName = item.name
+          actionType = 'player_heal'
+          addCombatLog(combat, { type: actionType, message: `${player.name} menggunakan ${item.name} dan memulihkan ${heal} HP!`, heal })
+          // Consume item
+          player.inventory = [...inventory]
+          player.inventory.splice(itemIndex, 1)
+        } else if (item.spellType && item.attack) {
+          // Spell scroll
+          manaCost = item.manaCost || 0
+          if ((player.mana || 0) < manaCost) {
+            addCombatLog(combat, { type: 'status', message: 'Mana tidak cukup!' })
+            setIsLoading(false)
+            return
+          }
+          player.mana = (player.mana || 0) - manaCost
+          damage = item.attack
+          enemy.hp = Math.max(0, enemy.hp - damage)
+          actionName = item.name
+          actionType = 'player_skill'
+          addCombatLog(combat, { type: actionType, message: `${player.name} menggunakan ${item.name} pada ${enemy.name} untuk ${damage} damage!`, damage })
+          // Consume spell scroll
+          player.inventory = [...inventory]
+          player.inventory.splice(itemIndex, 1)
+        }
+      }
+    } else if (action === 'flee') {
+      const fleeChance = 0.5 + (player.stats?.agi || 5) / 100
+      if (Math.random() < fleeChance) {
+        addCombatLog(combat, { type: 'flee', message: `${player.name} berhasil melarikan diri!` })
+        endCombat(false)
+        setIsLoading(false)
+        return
+      } else {
+        addCombatLog(combat, { type: 'status', message: `${player.name} gagal melarikan diri!` })
+      }
+    }
+
+    combat.turnCount++
+    combat.playerHp = player.health || combat.playerHp
+    combat.playerMana = player.mana || combat.playerMana
+    combat.enemy = enemy
+    combat.enemyHp = enemy.hp
+
+    // Check victory
+    if (enemy.hp <= 0) {
+      // Victory!
+      const xpReward = enemy.xpReward || 50
+      const loot = enemy.loot || []
+      addCombatLog(combat, { type: 'victory', message: `${enemy.name} dikalahkan! Mendapat ${xpReward} XP${loot.length > 0 ? ` dan ${loot.join(', ')}` : ''}!` })
+      
+      // Apply XP and loot
+      const xpResult = addXp(player, xpReward)
+      if (xpResult.leveledUp) {
+        addCombatLog(combat, { type: 'status', message: `🎉 LEVEL UP! ${player.name} naik ke Level ${xpResult.newLevel}!` })
+      }
+      
+      // Add loot to inventory
+      if (loot.length > 0 && player.inventory) {
+        for (const lootName of loot) {
+          const existingItem = player.inventory.find((i: any) => i.name === lootName)
+          if (existingItem) {
+            // Stack if possible
+          } else {
+            player.inventory.push({
+              id: crypto.randomUUID(),
+              name: lootName,
+              type: 'loot',
+              rarity: 'common',
+              description: `Dijatuhkan oleh ${enemy.name}`,
+              value: 10,
+              equipped: false,
+            })
+          }
+        }
+      }
+
+      // Update player in state
+      player.maxHealth = calculatePlayerMaxHp(player)
+      player.maxMana = calculatePlayerMaxMana(player)
+      player.health = player.maxHealth
+      player.mana = player.maxMana
+
+      const newState = { ...state, combat: { ...combat, inCombat: false, enemy: undefined }, player }
+      setGameState(newState)
+      await saveGame(newState.id, newState)
+      setIsLoading(false)
+      return
+    }
+
+    // Enemy turn
+    combat.turn = 'enemy'
+    
+    // Simple enemy AI
+    let enemyAction = 'attack'
+    const enemySkills = enemy.skills || []
+    const availableSkills = enemySkills.filter((s: any) => s.currentCooldown <= 0)
+    
+    if (enemy.hp < enemy.maxHp * 0.3 && availableSkills.some((s: any) => s.type === 'heal')) {
+      enemyAction = 'heal'
+    } else if (availableSkills.length > 0 && Math.random() < 0.3) {
+      enemyAction = 'skill'
+    }
+
+    if (enemyAction === 'attack') {
+      const enemyAtk = enemy.attack || 10
+      const playerDef = calculatePlayerDefense(player)
+      const baseDamage = Math.max(1, enemyAtk - Math.floor(playerDef * 0.5))
+      const isCrit = Math.random() < 0.05
+      damage = isCrit ? Math.floor(baseDamage * 1.5) : baseDamage
+      damage = Math.floor(damage * (0.85 + Math.random() * 0.3))
+      player.health = Math.max(0, (player.health || combat.playerHp) - damage)
+      combat.playerHp = player.health
+      addCombatLog(combat, { type: isCrit ? 'enemy_crit' : 'enemy_attack', message: `${enemy.name} menyerang ${player.name} untuk ${damage} damage!${isCrit ? ' 💥 CRITICAL!' : ''}`, damage })
+    } else if (enemyAction === 'skill') {
+      const skill = availableSkills[Math.floor(Math.random() * availableSkills.length)]
+      skill.currentCooldown = skill.cooldown
+      if (skill.type === 'attack' && skill.damage) {
+        damage = Math.floor(skill.damage * (0.9 + Math.random() * 0.2))
+        player.health = Math.max(0, (player.health || combat.playerHp) - damage)
+        combat.playerHp = player.health
+        addCombatLog(combat, { type: 'enemy_skill', message: `${enemy.name} menggunakan ${skill.name} pada ${player.name} untuk ${damage} damage!`, damage })
+      } else if (skill.type === 'buff') {
+        addCombatLog(combat, { type: 'enemy_skill', message: `${enemy.name} menggunakan ${skill.name}! ${skill.description}` })
+      }
+    } else if (enemyAction === 'heal') {
+      const skill = availableSkills.find((s: any) => s.type === 'heal')
+      if (skill && skill.healAmount) {
+        heal = skill.healAmount
+        enemy.hp = Math.min(enemy.maxHp, enemy.hp + heal)
+        combat.enemyHp = enemy.hp
+        addCombatLog(combat, { type: 'enemy_heal', message: `${enemy.name} menggunakan ${skill.name} dan memulihkan ${heal} HP!`, heal })
+      }
+    }
+
+    // Reduce cooldowns
+    enemySkills.forEach((s: any) => { if (s.currentCooldown > 0) s.currentCooldown-- })
+
+    combat.enemy = enemy
+    combat.enemyHp = enemy.hp
+
+    // Check defeat
+    if (player.health <= 0) {
+      addCombatLog(combat, { type: 'defeat', message: `${player.name} dikalahkan oleh ${enemy.name}...` })
+      
+      const newState = { ...state, combat: { ...combat, inCombat: false, enemy: undefined }, player, isAlive: false }
+      newState.deathRecord = {
+        date: { ...state.currentDate },
+        age: player.age,
+        cause: `Dikalahkan oleh ${enemy.name} dalam pertarungan`,
+        story: `Petualangan ${player.name} berakhir di tangan ${enemy.name}.`,
+        achievements: [],
+        legacy: `${player.name} diperingati sebagai pejuang yang berani menghadapi ${enemy.name}.`,
+      }
+      newState.storyLog.push({
+        id: crypto.randomUUID(),
+        date: { ...state.currentDate },
+        playerAge: player.age,
+        content: `☠️ ${player.name} dikalahkan oleh ${enemy.name}...`,
+        type: 'battle',
+        location: player.location,
+      })
+      setGameState(newState)
+      await saveGame(newState.id, newState)
+      setIsLoading(false)
+      return
+    }
+
+    // Back to player turn
+    combat.turn = 'player'
+
+    const newState = { ...state, combat, player }
+    setGameState(newState)
+    await saveGame(newState.id, newState)
+    setIsLoading(false)
+  }, [])
+
+  const endCombat = useCallback((victory: boolean) => {
+    const state = gameRef.current
+    if (!state || !state.combat?.inCombat) return
+
+    const combat = { ...state.combat, inCombat: false, enemy: undefined }
+    const newState = { ...state, combat }
+    setGameState(newState)
+    saveGame(newState.id, newState)
+  }, [])
+
   return (
     <GameContext.Provider value={{
       gameState, isLoading, error, saves,
       newGame, continueGame, saveCurrentGame, deleteSaveGame,
       refreshSaves, submitAction, exportSave, importSave: importSaveFn,
+      // Combat
+      startCombat, combatAction, endCombat,
     }}>
       {children}
     </GameContext.Provider>
