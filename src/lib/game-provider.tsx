@@ -42,10 +42,19 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const newGame = useCallback(async () => {
     setIsLoading(true)
-    setError(null)
     try {
-      const worldRes = await callAI([{ role: 'system', content: SYSTEM_PROMPTS.createWorld }], { temperature: 0.9, maxTokens: 4096 })
-      const worldData = JSON.parse(worldRes.content.replace(/```json\n?|\n?```/g, '').trim())
+      // Step 1: Create world - pake max tokens gede
+      const worldRes = await callAI([{ role: 'system', content: SYSTEM_PROMPTS.createWorld }], { temperature: 0.9, maxTokens: 8192 })
+      
+      // Bersihin response dari markdown JSON formatting
+      let cleaned = worldRes.content.replace(/```json\n?/g, '').replace(/\n?```/g, '').trim()
+      // Cari JSON valida - ambil dari { pertama sampai } terakhir
+      const firstBrace = cleaned.indexOf('{')
+      const lastBrace = cleaned.lastIndexOf('}')
+      if (firstBrace === -1 || lastBrace === -1) throw new Error('AI tidak menghasilkan JSON yang valid')
+      cleaned = cleaned.slice(firstBrace, lastBrace + 1)
+      
+      const worldData = JSON.parse(cleaned)
       
       const playerRes = await callAI([
         { role: 'system', content: SYSTEM_PROMPTS.createPlayer },
