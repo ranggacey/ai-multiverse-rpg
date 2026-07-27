@@ -3,8 +3,8 @@
 
 import type { Player, WorldSettings, WorldMemory } from './types'
 
-const API_BASE = 'https://rphvgzw.abc-tunnel.us/v1'
-const API_KEY = '«redacted:sk-…»' // 9Router might not need auth or use different auth
+const API_BASE = process.env.NEXT_PUBLIC_AI_API_BASE || 'https://rphvgzw.abc-tunnel.us/v1'
+const API_KEY = process.env.NEXT_PUBLIC_AI_API_KEY || 'sk-placeholder'
 
 export interface AIResponse {
   content: string
