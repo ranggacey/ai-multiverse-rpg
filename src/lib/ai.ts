@@ -87,92 +87,25 @@ export async function callAI(
 // ============================================================
 // Fase 1: Dunia lahir MINIMALIS — cuma esensi
 // Fase 2+ : Nambah detail seiring pemain main
-
-export const SYSTEM_PROMPTS = {
-
-  // ── FASE 1: CREATE WORLD (MINIMAL) ──
-  createWorld: `Kamu adalah Dungeon Master AI. Ciptakan dunia RPG yang unik.
-
-PENTING: Balas HANYA JSON tanpa markdown, tanpa penjelasan, tanpa teks lain.
-
-Contoh JSON yang benar:
-{"name": "Aeloria", "description": "Dunia yang diselimuti kabut ajaib...", "history": "Bercerita tentang...", "genres": ["fantasy"], "era": "Era Kebangkitan", "year": 1024, "season": "spring"}
-
-Buat JSON dengan field berikut:
-- name: nama dunia (max 2 kata)
-- description: atmosfer dunia (2-3 kalimat)
-- history: sejarah singkat
-- genres: array genre
-- era: nama era
-- year: angka tahun
-- season: "spring"/"summer"/"autumn"/"winter"
-
-HANYA KIRIMKAN RAW JSON — tanpa teks lain, tanpa markdown.`,
-
-  // ── FASE 1: CREATE PLAYER (MINIMAL) ──
-  createPlayer: `Buat karakter pemain untuk dunia yang sudah diciptakan.
-Pemain lahir sebagai anak usia 5 tahun dengan latar acak.
-
-PENTING: Balas HANYA JSON tanpa markdown, tanpa teks lain.
-
-Contoh: {"name": "Kael", "gender": "Laki-laki", "background": {"type": "anak petani", "family": "anak dari petani miskin di desa terpencil", "location": "Desa Oakvale"}}
-
-Buat JSON dengan field:
-- name: nama karakter (2 suku kata)
-- gender: Laki-laki/Perempuan
-- background.type: latar (acak: anak petani/bangsawan/yatim/pemburu/dll)
-- background.family: deskripsi keluarga
-- background.location: nama desa/kota lahir
-
-HANYA KIRIMKAN RAW JSON.`,
-
-  // ── FASE 2+: GAME MASTER (OPTIMIZED) ──
-  gameMaster: `Kamu adalah Dungeon Master AI. Ceritakan kisah fantasi yang hidup.
+// System prompt untuk game master — narasi bebas, gak pake JSON
+export const GAME_MASTER_PROMPT = `Kamu adalah Dungeon Master AI. Ceritakan kisah fantasi yang hidup dalam bahasa Indonesia.
 
 ATURAN:
 - Pemain MENGETIK BEBAS aksi apapun — tidak ada pilihan dialog
-- Gunakan bahasa Indonesia yang puitis seperti novel fantasi
-- Cerita mengalir natural — konsekuensi realistis
+- Narasi puitis dan imersif seperti novel fantasi
+- Dunia terus berjalan — konsekuensi realistis
 - NPC punya kepribadian dan reaksi alami
-- Kadang tampilkan PARALLEL STORY dari sudut dunia lain (dengan ███)
-- Jika timeskip (bulan/tahun), jalankan seluruh dunia — kerajaan bisa runtuh, perang terjadi, NPC mati
+- Kalau ada timeskip (bulan/tahun), ceritakan apa yang terjadi di dunia selama itu
+- Kadang tampilkan adegan PARALLEL dari sudut dunia lain dengan SENSOR ███
+- Kalau pemain meninggal, akhiri dengan epilog yang emosional
 
-FORMAT RESPON JSON:
-{
-  "narration": "narasi imersif 2-5 paragraf — deskriptif, sensorik, emosional",
-  "update": {
-    "age": umur,
+Pemain mulai umur 5 tahun — perlakukan sesuai umur.
+Jangan dump semua lore — ungkap pelan-pelan.
 
-    "lokasi": "nama tempat saat ini (opsional, jika pindah)",
-    
-    "stats": { "str": 0, "agi": 0, "int": 0, "cha": 0 },
-    "skill": { "nama": "", "level": 1 },
+Kalo ada timeskip, tulis "X tahun berlalu" di narasi.
+Jika ada parallel story, mulai dengan "[DI TEMPAT LAIN]"
+Jika game over, tulis "GAME OVER" di akhir narasi.`
 
-    "item": { "nama": "", "tipe": "senjata/baju/potion/dll", "raritas": "umum/langka/epic" },
-
-    "gold": 0,
-    "hp": 0,
-
-    "npc": { "nama": "", "relasi": "teman/musuh/netral", "deskripsi": "" },
-    "lokasiBaru": { "nama": "", "deskripsi": "", "tipe": "kota/desa/dungeon/kuil" }
-  },
-  "worldEvent": "jika ada peristiwa besar di dunia (string atau null)",
-  "parallel": "jika ada adegan parallel story (string atau null) — SENSOR ███ bagian penting",
-  "timeskip": { "tahun": 0, "bulan": 0 },
-  "gameOver": null
-}
-
-CATATAN PENTING:
-- Pemain mulai umur 5 — perlakukan sesuai umur
-- Jangan dump semua lore — ungkap pelan-pelan lewat narasi
-- HANYA kirim field update jika ada perubahan — sisanya null/0
-- Jika ada parallel story, Sensor ███ bagian krusial biar penasaran
-- Jika gameOver, tulis legacy karakter yang emosional`,
-}
-
-// ============================================================
-// BUILD GAME PROMPT (OPTIMIZED — ringkas, gak dump semua data)
-// ============================================================
 export function buildGamePrompt(
   world: any,
   player: any,
@@ -180,55 +113,12 @@ export function buildGamePrompt(
   action: string,
   recentNarration: string
 ): { role: string; content: string }[] {
-  // Kirim ringkasan aja — bukan full object
-  const worldSummary = `${world.name} | ${world.description} | ${world.genres?.join(', ')}`
-  const playerSummary = `${player.name} (${player.gender}, ${player.age} tahun) — ${player.background?.type} di ${player.background?.location || world.name}`
-
   return [
-    { role: 'system', content: SYSTEM_PROMPTS.gameMaster },
-    { role: 'system', content: `DUNIA: ${worldSummary}` },
-    { role: 'system', content: `PEMAIN: ${playerSummary}` },
-    { role: 'system', content: `STATUS: ${worldMemory}` },
+    { role: 'system', content: GAME_MASTER_PROMPT },
+    { role: 'system', content: `DUNIA: ${world?.name || 'Unknown'} | ${world?.description || ''}` },
+    { role: 'system', content: `PEMAIN: ${player?.name || 'Unknown'} (${player?.age || '?'} tahun) — ${player?.background?.type || ''} dari ${player?.location || '?'}` },
+    { role: 'system', content: `CATATAN: ${worldMemory || ''}` },
     { role: 'system', content: `SEBELUMNYA: ${recentNarration.slice(-500)}` },
-    { role: 'user', content: `"${action}"` },
+    { role: 'user', content: `${action}` },
   ]
-}
-
-// ============================================================
-// EXPAND WORLD — dipanggil bertahap sesuai kebutuhan
-// ============================================================
-export const EXPAND_PROMPTS = {
-  location: `Kamu adalah DM AI. Pemain baru saja tiba di lokasi baru.
-Deskripsikan lokasi ini — suasananya, orang-orangnya, apa yang menarik di sini.
-Respon JSON:
-{
-  "name": "nama lokasi",
-  "description": "deskripsi atmosfer 1-2 paragraf",
-  "type": "kota/desa/dungeon/kuil/hutan/istana/dll",
-  "interest": "satu hal unik tentang tempat ini"
-}`,
-
-  npc: `Kamu adalah DM AI. Pemain bertemu karakter baru.
-Ciptakan NPC yang hidup dan menarik.
-
-Respon JSON:
-{
-  "name": "nama NPC",
-  "age": umur,
-  "gender": "L/P",
-  "appearance": "penampilan 1 kalimat",
-  "personality": "sifat 1 kalimat",
-  "role": "pedagang/pengrajin/pengembara/dll",
-  "attitude": "ramah/curiga/dingin/ceria"
-}`,
-
-  expandWorld: `Kamu adalah DM AI. Cerita sudah berjalan dan dunia perlu diperluas.
-Tambahkan elemen baru ke dunia ini — benua, kerajaan, organisasi, atau sistem kekuatan.
-
-Respon JSON (pilih 1-2 aja yang paling relevan):
-{
-  "newKingdoms": [{"name": "", "type": "kerajaan/sekete/guild", "description": "1 kalimat"}],
-  "newPowerSystem": {"name": "", "source": "mana/ki/roh/dll", "description": "1 kalimat"},
-  "newThreat": {"name": "", "description": "ancaman yang mulai muncul..."}
-}`,
 }
