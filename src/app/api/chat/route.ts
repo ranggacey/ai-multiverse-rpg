@@ -8,6 +8,10 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NINEROUTER_BASE_URL || 'https://rphvgzw.abc-tunnel.us/v1'
     const activeModel = model || process.env.NINEROUTER_MODEL || 'story-combo'
 
+    console.log('[AI] NINEROUTER_BASE_URL:', baseUrl)
+    console.log('[AI] NINEROUTER_MODEL:', activeModel)
+    console.log('[AI] API Key exists:', !!apiKey)
+
     if (!apiKey) {
       return NextResponse.json(
         { error: 'API Key tidak dikonfigurasi. Set NINEROUTER_API_KEY di environment.' },
@@ -45,6 +49,9 @@ export async function POST(request: NextRequest) {
 
     const raw = await res.text()
 
+    console.log('[AI] Raw response length:', raw.length)
+    console.log('[AI] Raw response preview:', raw.slice(0, 500))
+
 // Coba parse JSON - handle kemungkinan ada teks ekstra setelah JSON
     let result
     try {
@@ -59,9 +66,13 @@ export async function POST(request: NextRequest) {
           throw new Error(`Invalid JSON response: ${raw.slice(0, 300)}`)
         }
       } else {
+        console.log('[AI] No JSON found in response')
         throw new Error(`Invalid JSON response: ${raw.slice(0, 300)}`)
       }
     }
+
+    console.log('[AI] JSON parsed successfully')
+    console.log('[AI] Content preview:', result.choices?.[0]?.message?.content?.slice(0, 200))
 
     return NextResponse.json({
       content: result.choices?.[0]?.message?.content || '',
