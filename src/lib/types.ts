@@ -35,6 +35,24 @@ export interface Item {
   equipped: boolean
 }
 
+export interface NPC {
+  id: string
+  name: string
+  relationship: string
+  description: string
+  location: string
+}
+
+export interface Quest {
+  id: string
+  name: string
+  description: string
+  status: 'active' | 'completed' | 'failed'
+  type: 'main' | 'side' | 'personal'
+  progress: number
+  maxProgress: number
+}
+
 export interface StoryLog {
   id: string
   date: WorldDate
@@ -93,6 +111,12 @@ export interface GameState {
 
   storyLog: StoryLog[]
   deathRecord?: DeathRecord
+
+  // NPC relationships
+  npcs?: NPC[]
+
+  // Active quests
+  quests?: Quest[]
 
   // Context buat AI — ringkasan
   worldMemory?: string

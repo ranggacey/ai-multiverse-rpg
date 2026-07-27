@@ -4,7 +4,8 @@ import { GameProvider, useGame } from '@/lib/game-provider'
 import { formatDate, formatTimePlayed } from '@/lib/game'
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, User, Map, Scroll, Download, Upload, Menu, X, Swords, Compass, Heart, ShoppingBag, Handshake, Eye } from 'lucide-react'
+import { ArrowLeft, User, Map, Scroll, Download, Upload, Menu, X, Swords, Compass, Heart, ShoppingBag, Handshake, Eye, Users, Trophy } from 'lucide-react'
+import Biography from './biography'
 
 type GameTab = 'stats' | 'inventory' | 'world' | 'log'
 
@@ -15,6 +16,7 @@ function GameUI() {
   const [showSidebar, setShowSidebar] = useState(true)
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
   const [showToast, setShowToast] = useState('')
+  const [showBiography, setShowBiography] = useState(false)
   const storyEndRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
 
@@ -116,7 +118,10 @@ function GameUI() {
                 <p className="text-red-300 font-medium mb-1">☠️ {player.name} telah tiada</p>
                 <p className="text-sm text-zinc-400">{deathRecord.cause}</p>
                 {deathRecord.legacy && <p className="text-xs text-zinc-500 mt-1 italic">"{deathRecord.legacy}"</p>}
-                <button onClick={() => router.push('/')} className="mt-3 text-xs px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg">Kembali ke menu</button>
+                <div className="flex gap-2 justify-center mt-3">
+                  <button onClick={() => setShowBiography(true)} className="text-xs px-4 py-2 bg-indigo-700/50 hover:bg-indigo-700 rounded-lg">Lihat Biografi</button>
+                  <button onClick={() => router.push('/')} className="text-xs px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg">Kembali ke menu</button>
+                </div>
               </div>
             ) : isAlive && (
               <>
@@ -220,15 +225,77 @@ function GameUI() {
                   <p className="text-xs font-medium text-indigo-400 mb-1">{world?.name}</p>
                   <p className="text-xs text-zinc-500 leading-relaxed">{world?.description}</p>
                   {world?.history && <p className="text-xs text-zinc-600 mt-2 italic">{world.history}</p>}
+
+                  {/* NPCs di lokasi */}
+                  {gameState.npcs && gameState.npcs.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-zinc-800">
+                      <p className="text-xs font-medium text-zinc-400 mb-2 flex items-center gap-1">
+                        <Users size={12} /> NPC Dikenal
+                      </p>
+                      <div className="space-y-1.5">
+                        {gameState.npcs.map((npc: any) => (
+                          <div key={npc.id} className="flex items-start gap-2 text-xs">
+                            <div className={`w-1.5 h-1.5 rounded-full mt-1 shrink-0 ${
+                              npc.relationship === 'teman' ? 'bg-emerald-400' :
+                              npc.relationship === 'musuh' ? 'bg-red-400' :
+                              'bg-zinc-500'
+                            }`} />
+                            <div className="min-w-0">
+                              <p className="text-zinc-300 font-medium truncate">{npc.name}</p>
+                              <p className="text-zinc-600 truncate">{npc.description}</p>
+                              <p className="text-zinc-700 text-[10px]">{npc.location}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* LOG */}
+              {/* QUEST tab — baru */}
               {activeTab === 'log' && (
                 <div>
-                  <p className="text-xs text-zinc-500">Bab {gameState.currentChapter}</p>
+                  <p className="text-xs text-zinc-500 flex items-center gap-1 mb-2">
+                    <Scroll size={12} /> Bab {gameState.currentChapter}
+                  </p>
                   <p className="text-xs text-zinc-600">Dimainkan: {formatTimePlayed(gameState.playTime)}</p>
-                  <p className="text-xs text-zinc-600 mt-2">{storyLog.length} kejadian tercatat</p>
+                  <p className="text-xs text-zinc-600 mt-1">{storyLog.length} kejadian tercatat</p>
+
+                  {/* Active Quests */}
+                  {gameState.quests && gameState.quests.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-zinc-800">
+                      <p className="text-xs font-medium text-zinc-400 mb-2 flex items-center gap-1">
+                        <Trophy size={12} /> Quest
+                      </p>
+                      <div className="space-y-2">
+                        {gameState.quests.map((quest: any) => (
+                          <div key={quest.id} className="p-2 bg-zinc-800/40 border border-zinc-800 rounded-lg">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className={`text-xs font-medium ${
+                                quest.status === 'completed' ? 'text-emerald-400 line-through' :
+                                quest.status === 'failed' ? 'text-red-400' :
+                                quest.type === 'main' ? 'text-amber-400' : 'text-zinc-200'
+                              }`}>{quest.name}</span>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                                quest.status === 'completed' ? 'bg-emerald-900/50 text-emerald-300' :
+                                quest.status === 'failed' ? 'bg-red-900/50 text-red-300' :
+                                'bg-indigo-900/50 text-indigo-300'
+                              }`}>{quest.status === 'active' ? 'Aktif' : quest.status === 'completed' ? 'Selesai' : 'Gagal'}</span>
+                            </div>
+                            {quest.status === 'active' && (
+                              <div className="h-1 bg-zinc-700 rounded-full overflow-hidden">
+                                <div className="h-full bg-indigo-500 rounded-full transition-all duration-500"
+                                  style={{ width: `${quest.maxProgress > 0 ? (quest.progress / quest.maxProgress) * 100 : 0}%` }} />
+                              </div>
+                            )}
+                            <p className="text-[10px] text-zinc-500 mt-1">{quest.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {gameState.worldMemory && (
                     <p className="text-xs text-zinc-500 mt-3 leading-relaxed">{gameState.worldMemory.slice(0, 200)}</p>
                   )}
@@ -255,11 +322,91 @@ function GameUI() {
               <span className="text-sm font-medium">Menu</span>
               <button onClick={() => setShowMobileSidebar(false)}><X size={16} /></button>
             </div>
-            <div className="p-4 text-xs text-zinc-500">
-              <p>Tambah fitur mobile sidebar</p>
+            <div className="p-4 space-y-3 text-xs">
+              {/* Player Info */}
+              <div className="flex items-center gap-3 pb-3 border-b border-zinc-800">
+                <div className={`w-2 h-2 rounded-full ${isAlive ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                <div>
+                  <p className="font-medium text-zinc-200">{player.name}</p>
+                  <p className="text-zinc-500">{world?.name} · {player.location}</p>
+                </div>
+              </div>
+
+              {/* Quick Stats */}
+              <div className="flex justify-between text-zinc-400">
+                <span>❤️ HP {player.health ?? 100}</span>
+                <span>💰 {player.wealth ?? 0}</span>
+                <span>🎂 {player.age} thn</span>
+              </div>
+
+              {/* Stats */}
+              {player.stats && (
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(player.stats).map(([k, v]) => (
+                    <div key={k} className="flex justify-between bg-zinc-800/50 px-2 py-1 rounded">
+                      <span className="text-zinc-500 uppercase text-[10px]">{k}</span>
+                      <span className="text-zinc-200 font-medium">{String(v)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Skills */}
+              {player.skills && player.skills.length > 0 && (
+                <div>
+                  <p className="text-zinc-400 font-medium mb-1">⚔️ Skill</p>
+                  {player.skills.slice(0, 5).map((s, i) => (
+                    <div key={i} className="flex justify-between py-0.5">
+                      <span className="text-zinc-300">{s.name}</span>
+                      <span className="text-indigo-400">Lv.{s.level}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Inventory */}
+              {player.inventory && player.inventory.length > 0 && (
+                <div>
+                  <p className="text-zinc-400 font-medium mb-1">🎒 Item ({player.inventory.length})</p>
+                  {player.inventory.slice(0, 5).map((item, i) => (
+                    <div key={item.id || i} className="flex justify-between py-0.5">
+                      <span className={`${item.rarity === 'legendary' ? 'text-amber-400' : item.rarity === 'epic' ? 'text-purple-400' : 'text-zinc-300'}`}>{item.name}</span>
+                      {item.equipped && <span className="text-emerald-400">◆</span>}
+                    </div>
+                  ))}
+                  {player.inventory.length > 5 && <p className="text-zinc-600 text-[10px] mt-1">...dan {player.inventory.length - 5} lainnya</p>}
+                </div>
+              )}
+
+              {/* Active Quests */}
+              {gameState.quests && gameState.quests.filter((q: any) => q.status === 'active').length > 0 && (
+                <div>
+                  <p className="text-amber-400 font-medium mb-1">📋 Quest Aktif</p>
+                  {gameState.quests.filter((q: any) => q.status === 'active').map((q: any) => (
+                    <div key={q.id} className="mb-2">
+                      <span className="text-zinc-200">{q.name}</span>
+                      <div className="h-1 bg-zinc-700 rounded-full mt-0.5 overflow-hidden">
+                        <div className="h-full bg-amber-500 rounded-full" style={{ width: `${q.maxProgress > 0 ? (q.progress / q.maxProgress) * 100 : 0}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-zinc-600 pt-2 border-t border-zinc-800">Bab {gameState.currentChapter} · {formatTimePlayed(gameState.playTime)}</p>
             </div>
           </div>
         </div>
+      )}
+
+      {/* BIOGRAPHY MODAL */}
+      {showBiography && deathRecord && (
+        <Biography
+          gameState={gameState}
+          onClose={() => setShowBiography(false)}
+          onExport={exportSave}
+          onReturn={() => router.push('/')}
+        />
       )}
     </div>
   )

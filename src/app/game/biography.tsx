@@ -18,12 +18,12 @@ export default function Biography({ gameState, onClose, onExport, onReturn }: Bi
 
   // Calculate lifetime stats
   const storiesTold = storyLog.length
-  const parallelCount = 0
-  const relationshipsCount = 0
+  const parallelCount = storyLog.filter(l => l.type === 'parallel').length
+  const relationshipsCount = gameState.npcs?.length || 0
   const itemsCollected = (player.inventory || []).length
   const skillsLearned = (player.skills || []).length
-  const questsCompleted = 0
-  const questsFailed = 0
+  const questsCompleted = gameState.quests?.filter(q => q.status === 'completed' || q.status === 'failed').length || 0
+  const questsFailed = gameState.quests?.filter(q => q.status === 'failed').length || 0
 
   // Timeline: filter significant events
   const timeline = storyLog.filter(l => 
@@ -36,6 +36,7 @@ export default function Biography({ gameState, onClose, onExport, onReturn }: Bi
     ...(storiesTold >= 20 ? ['Menulis lebih dari 20 catatan sejarah'] : []),
     ...(skillsLearned >= 3 ? [`Menguasai ${skillsLearned} skill`] : []),
     ...(relationshipsCount >= 3 ? [`Menjalin ${relationshipsCount} hubungan`] : []),
+    ...(relationshipsCount >= 1 ? [`Bertemu ${relationshipsCount} karakter`] : []),
     ...(itemsCollected >= 5 ? [`Mengoleksi ${itemsCollected} item`] : []),
     ...(parallelCount >= 2 ? [`Menyingkap ${parallelCount} cerita paralel`] : []),
     ...(questsCompleted >= 2 ? [`Menyelesaikan ${questsCompleted} quest`] : []),
@@ -136,13 +137,13 @@ export default function Biography({ gameState, onClose, onExport, onReturn }: Bi
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
-                { label: 'STR', value: player.stats?.strength ?? 0 },
-                { label: 'AGI', value: player.stats?.agility ?? 0 },
-                { label: 'VIT', value: player.stats?.vitality ?? 0 },
-                { label: 'INT', value: player.stats?.intelligence ?? 0 },
-                { label: 'WIS', value: player.stats?.wisdom ?? 0 },
-                { label: 'CHA', value: player.stats?.charisma ?? 0 },
-                { label: 'LUK', value: player.stats?.luck ?? 0 },
+                { label: 'STR', value: player.stats?.str ?? 0 },
+                { label: 'AGI', value: player.stats?.agi ?? 0 },
+                { label: 'INT', value: player.stats?.int ?? 0 },
+                { label: 'CHA', value: player.stats?.cha ?? 0 },
+                { label: 'HP', value: player.health ?? 0 },
+                { label: 'Lv. Skill', value: skillsLearned },
+                { label: 'Item', value: itemsCollected },
                 { label: 'Kekayaan', value: `${player.wealth ?? 0}` },
               ].map((stat, i) => (
                 <div key={i} className="flex items-center justify-between px-3 py-2 bg-zinc-800/30 rounded text-xs">

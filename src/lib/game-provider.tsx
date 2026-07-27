@@ -207,6 +207,70 @@ Suasana puitis, epik, emosional. Bahasa Indonesia yang indah.` }
         })
       }
 
+      // Detect NPC
+      const npcMatch = content.match(/NPC:\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^\n]+)/i)
+      if (npcMatch) {
+        const npcName = npcMatch[1].trim()
+        const npcRel = npcMatch[2].trim()
+        const npcDesc = npcMatch[3].trim()
+        if (!newState.npcs) newState.npcs = []
+        if (!newState.npcs.find(n => n.name === npcName)) {
+          newState.npcs = [...newState.npcs, {
+            id: crypto.randomUUID(),
+            name: npcName,
+            relationship: npcRel,
+            description: npcDesc,
+            location: newState.player.location,
+          }]
+        }
+      }
+
+      // Detect QUEST start
+      const questMatch = content.match(/QUEST:\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*(\S+)/i)
+      if (questMatch) {
+        const qName = questMatch[1].trim()
+        const qDesc = questMatch[2].trim()
+        const qType = questMatch[3].trim()
+        if (!newState.quests) newState.quests = []
+        if (!newState.quests.find(q => q.name === qName)) {
+          newState.quests = [...newState.quests, {
+            id: crypto.randomUUID(),
+            name: qName,
+            description: qDesc,
+            status: 'active' as const,
+            type: (qType as 'main' | 'side' | 'personal') || 'side',
+            progress: 0,
+            maxProgress: 3,
+          }]
+        }
+      }
+
+      // Detect QUEST progress
+      const qpMatch = content.match(/QUEST_PROGRESS:\s*([^|]+)\s*\|\s*(\d+)\s*\|\s*(\d+)/i)
+      if (qpMatch) {
+        const qName = qpMatch[1].trim()
+        const qProg = parseInt(qpMatch[2])
+        const qMax = parseInt(qpMatch[3])
+        if (newState.quests) {
+          newState.quests = newState.quests.map(q =>
+            q.name === qName
+              ? { ...q, progress: Math.min(qMax, qProg), maxProgress: qMax }
+              : q
+          )
+        }
+      }
+
+      // Detect QUEST completion
+      const qsMatch = content.match(/QUEST_SELESAI:\s*([^\n]+)/i)
+      if (qsMatch) {
+        const qName = qsMatch[1].trim()
+        if (newState.quests) {
+          newState.quests = newState.quests.map(q =>
+            q.name === qName ? { ...q, status: 'completed' as const, progress: q.maxProgress } : q
+          )
+        }
+      }
+
       // Detect game over
       if (content.match(/GAME OVER/i)) {
         newState.isAlive = false
