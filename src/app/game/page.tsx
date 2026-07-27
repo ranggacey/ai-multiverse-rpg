@@ -4,8 +4,9 @@ import { GameProvider, useGame } from '@/lib/game-provider'
 import { formatDate, formatTimePlayed } from '@/lib/game'
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, User, Map, Scroll, Download, Upload, Menu, X, Swords, Compass, Heart, ShoppingBag, Handshake, Eye, Users, Trophy } from 'lucide-react'
+import { ArrowLeft, User, Map, Scroll, Download, Upload, Menu, X, Swords, Compass, Heart, ShoppingBag, Handshake, Eye, Users, Trophy, CloudSun, Moon, Sun } from 'lucide-react'
 import Biography from './biography'
+import { WEATHER_ICONS, TIME_ICONS, type Weather, type TimeOfDay } from '@/lib/types'
 
 type GameTab = 'stats' | 'inventory' | 'world' | 'log'
 
@@ -17,8 +18,20 @@ function GameUI() {
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
   const [showToast, setShowToast] = useState('')
   const [showBiography, setShowBiography] = useState(false)
+  const [autoSaveMsg, setAutoSaveMsg] = useState('')
   const storyEndRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
+
+  // Auto-save every 60 seconds
+  useEffect(() => {
+    if (!gameState?.isAlive || !gameState) return
+    const interval = setInterval(() => {
+      saveCurrentGame()
+      setAutoSaveMsg('Auto-saved')
+      setTimeout(() => setAutoSaveMsg(''), 2000)
+    }, 60000)
+    return () => clearInterval(interval)
+  }, [gameState?.isAlive, gameState, saveCurrentGame])
 
   useEffect(() => { storyEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [gameState?.storyLog?.length])
 
@@ -59,12 +72,24 @@ function GameUI() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Weather & Time of Day */}
+          {world.weather && (
+            <span className="text-xs hidden sm:inline" title={world.weather}>
+              {WEATHER_ICONS[world.weather as Weather] || '☀️'}
+            </span>
+          )}
+          {world.timeOfDay && (
+            <span className="text-xs hidden sm:inline" title={world.timeOfDay}>
+              {TIME_ICONS[world.timeOfDay as TimeOfDay] || '🌙'}
+            </span>
+          )}
           <div className={`px-2 py-0.5 rounded text-xs font-medium ${isAlive ? 'bg-emerald-900/50 text-emerald-300' : 'bg-red-900/50 text-red-300'}`}>
             {isAlive ? 'Hidup' : `Mati (${deathRecord?.age} thn)`}
           </div>
           <p className="text-xs text-zinc-500 hidden sm:block">{formatDate(world)}</p>
           <button onClick={() => { saveCurrentGame(); showT('Tersimpan!') }} className="p-1.5 text-zinc-400 hover:text-zinc-200" title="Simpan"><Download size={14} /></button>
           <button onClick={exportSave} className="p-1.5 text-zinc-400 hover:text-zinc-200" title="Export"><Upload size={14} /></button>
+          {autoSaveMsg && <span className="text-[10px] text-emerald-500/70 animate-pulse">{autoSaveMsg}</span>}
           <button onClick={() => setShowMobileSidebar(true)} className="p-1.5 text-zinc-400 hover:text-zinc-200 md:hidden"><Menu size={14} /></button>
         </div>
       </header>
@@ -224,6 +249,27 @@ function GameUI() {
                 <div>
                   <p className="text-xs font-medium text-indigo-400 mb-1">{world?.name}</p>
                   <p className="text-xs text-zinc-500 leading-relaxed">{world?.description}</p>
+                  
+                  {/* Atmosphere box */}
+                  <div className="mt-2 flex gap-2 text-xs">
+                    {world.weather && (
+                      <span className="px-2 py-1 bg-zinc-800/50 rounded text-zinc-400 flex items-center gap-1">
+                        <span>{WEATHER_ICONS[world.weather as Weather] || '☀️'}</span>
+                        {world.weather}
+                      </span>
+                    )}
+                    {world.timeOfDay && (
+                      <span className="px-2 py-1 bg-zinc-800/50 rounded text-zinc-400 flex items-center gap-1">
+                        <span>{TIME_ICONS[world.timeOfDay as TimeOfDay] || '🌙'}</span>
+                        {world.timeOfDay}
+                      </span>
+                    )}
+                    {world.season && (
+                      <span className="px-2 py-1 bg-zinc-800/50 rounded text-zinc-400">
+                        {world.season}
+                      </span>
+                    )}
+                  </div>
                   {world?.history && <p className="text-xs text-zinc-600 mt-2 italic">{world.history}</p>}
 
                   {/* NPCs di lokasi */}

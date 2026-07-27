@@ -71,6 +71,28 @@ export interface DeathRecord {
   legacy: string
 }
 
+export type Weather = 'cerah' | 'berawan' | 'hujan' | 'badai' | 'salju' | 'berkabut' | 'mendung' | 'angin_kencang'
+export type TimeOfDay = 'pagi' | 'siang' | 'sore' | 'malam' | 'dini_hari'
+
+export const WEATHER_ICONS: Record<Weather, string> = {
+  cerah: '☀️',
+  berawan: '☁️',
+  hujan: '🌧️',
+  badai: '⛈️',
+  salju: '❄️',
+  berkabut: '🌫️',
+  mendung: '☁️',
+  angin_kencang: '💨',
+}
+
+export const TIME_ICONS: Record<TimeOfDay, string> = {
+  pagi: '🌅',
+  siang: '☀️',
+  sore: '🌆',
+  malam: '🌙',
+  dini_hari: '🌃',
+}
+
 export interface GameState {
   id: string
   version: string
@@ -89,6 +111,8 @@ export interface GameState {
     year: number
     era?: string
     season?: string
+    weather?: Weather
+    timeOfDay?: TimeOfDay
   }
 
   // Player — minimal

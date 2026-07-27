@@ -1,6 +1,7 @@
 // AI client — langsung panggil 9Router dari browser
 // Progressive world building: minimal awal, nambah gradual
 
+// Pastiin ini default ke proxy VPS (harusnya dari env Vercel)
 const API_BASE = process.env.NEXT_PUBLIC_AI_API_BASE || 'https://rphvgzw.abc-tunnel.us/v1'
 const API_KEY = process.env.NEXT_PUBLIC_AI_API_KEY || ''
 
@@ -76,7 +77,7 @@ export async function callAI(
         const reasoning = data.choices?.[0]?.message?.reasoning_content?.trim() || ''
         const textAlt = data.choices?.[0]?.text || data.response || data.content || ''
 
-        // DeepSeek: reasoning_content biasanya berisi proses mikir, 
+        // DeepSeek: reasoning_content biasanya berisi proses mikir,
         // content asli kadang kosong kalo finish_reason = "length"
         // Split: ambil bagian setelah "Answer:" atau "Jawaban:" di reasoning
         if (reasoning) {
@@ -133,6 +134,8 @@ ATURAN NARASI:
 LABEL YANG HARUS DISELIPKAN DI NARASI (jika ada perubahan):
 USIA: [umur baru] — saat usia berubah
 LOKASI: [nama tempat baru] — saat pindah lokasi
+CUACA: [cerah/berawan/hujan/badai/salju/berkabut] — saat cuaca berubah
+WAKTU: [pagi/siang/sore/malam/dini_hari] — saat waktu berganti
 STAT:str:[angka],agi:[angka],int:[angka],cha:[angka] — saat stats berubah
 NPC: [nama] | [teman/musuh/netral] | [deskripsi singkat] — saat bertemu NPC baru
 QUEST: [nama quest] | [deskripsi] | [main/side/personal] — saat mulai quest baru
@@ -140,11 +143,12 @@ QUEST_PROGRESS: [nama quest] | [progress] | [max] — saat quest progress maju
 QUEST_SELESAI: [nama quest] — saat quest selesai
 
 Contoh label di tengah narasi:
-"...Kael berjalan menyusuri jalan setapak. USIA: 10 LOKASI: Desa Oakvale STAT:str:6,agi:5,int:5,cha:5 NPC: Sersan Varian | netral | Seorang veteran perang berjanggut tebal QUEST: Berburu Serigala | Bunuh 3 serigala di hutan utara | side QUEST_PROGRESS: Berburu Serigala | 1 | 3"
+"...Kael berjalan menyusuri jalan setapak. CUACA: hujan WAKTU: malam USIA: 10 LOKASI: Desa Oakvale STAT:str:6,agi:5,int:5,cha:5 NPC: Sersan Varian | netral | Seorang veteran perang berjanggut tebal QUEST: Berburu Serigala | Bunuh 3 serigala di hutan utara | side QUEST_PROGRESS: Berburu Serigala | 1 | 3"
 
 PENTING:
 - Label cukup diselipkan di baris mana saja dalam narasi
 - Jangan selalu kasih label — kasih cuma kalo ada perubahan berarti
+- Usahakan setiap respon punya minimal CUACA dan WAKTU biar dunia terasa hidup
 - Kalo pemain meninggal, tulis "GAME OVER" di akhir narasi dan tulis legacy yang emosional`
 
 export function buildGamePrompt(

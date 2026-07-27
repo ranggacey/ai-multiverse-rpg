@@ -9,7 +9,7 @@ export function createInitialState(): GameState {
     playTime: 0,
     currentChapter: 1,
     isAlive: true,
-    world: { name: '', description: '', year: 1024 },
+    world: { name: '', description: '', year: 1024, weather: 'cerah', timeOfDay: 'pagi' },
     player: { id: '', name: '', age: 5, gender: 'Laki-laki', background: { type: '', family: '', location: '' }, location: '', title: null },
     currentDate: { year: 1024, month: 1, day: 1 },
     storyLog: [],

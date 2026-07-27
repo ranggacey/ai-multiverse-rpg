@@ -158,6 +158,17 @@ Suasana puitis, epik, emosional. Bahasa Indonesia yang indah.` }
       const locMatch = content.match(/LOKASI:\s*([^\n]+)/i)
       if (locMatch) newState.player.location = locMatch[1].trim()
 
+      // Ekstrak cuaca & waktu
+      const weatherMatch = content.match(/CUACA:\s*([^\n\s]+)/i)
+      if (weatherMatch) {
+        newState.world.weather = weatherMatch[1].trim().toLowerCase() as any
+      }
+
+      const timeMatch = content.match(/WAKTU:\s*([^\n\s]+)/i)
+      if (timeMatch) {
+        newState.world.timeOfDay = timeMatch[1].trim().toLowerCase() as any
+      }
+
       const statMatch = content.match(/STAT:([^|]+)/i)
       if (statMatch) {
         const st = newState.player.stats || { str: 5, agi: 5, int: 5, cha: 5 }
