@@ -1,5 +1,8 @@
-// AI client — calls Next.js API Route (server-side) instead of 9Router directly
-// API Key aman di server, gak terekspos ke frontend
+// AI client — langsung panggil 9Router dari browser
+// Biar gak kena timeout Vercel function (Hobby cuma 10s)
+
+const API_BASE = process.env.NEXT_PUBLIC_AI_API_BASE || 'https://rphvgzw.abc-tunnel.us/v1'
+const API_KEY = process.env.NEXT_PUBLIC_AI_API_KEY || ''
 
 export interface AIResponse {
   content: string
@@ -17,27 +20,57 @@ export async function callAI(
     model?: string
   }
 ): Promise<AIResponse> {
-  const res = await fetch('/api/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      messages,
-      model: options?.model,
-      maxTokens: options?.maxTokens || 4096,
-      temperature: options?.temperature ?? 0.8,
-    }),
-  })
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 300000) // 5 menit
 
-  if (!res.ok) {
-    const data = await res.json()
-    throw new Error(data.error || `HTTP ${res.status}`)
+  try {
+    const res = await fetch(`${API_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: options?.model || process.env.NEXT_PUBLIC_AI_MODEL || 'satu',
+        messages,
+        max_tokens: options?.maxTokens || 4096,
+        temperature: options?.temperature ?? 0.8,
+      }),
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeout)
+
+    const text = await res.text()
+    console.log('[AI] response length:', text.length)
+
+    if (!res.ok) {
+      throw new Error(`AI API error: ${res.status} - ${text.slice(0, 200)}`)
+    }
+
+    // JSON parsing yang robust
+    let data
+    try {
+      data = JSON.parse(text)
+    } catch {
+      const match = text.match(/\{[\s\S]*\}/)
+      if (match) data = JSON.parse(match[0])
+      else throw new Error(`Invalid JSON: ${text.slice(0, 200)}`)
+    }
+
+    return {
+      content: data.choices?.[0]?.message?.content || '',
+      usage: data.usage ? {
+        promptTokens: data.usage.prompt_tokens,
+        completionTokens: data.usage.completion_tokens,
+      } : undefined,
+    }
+  } catch (err: any) {
+    clearTimeout(timeout)
+    throw err
   }
-
-  const data = await res.json()
-  return data
 }
 
-// System prompts for different game phases
+// System prompts
 export const SYSTEM_PROMPTS = {
   createWorld: `Kamu adalah Dungeon Master AI untuk game RPG Multiverse. 
 Tugasmu adalah menciptakan dunia fantasi yang unik dan mendetail.
@@ -122,7 +155,7 @@ Format respons JSON:
   "gameOver": null | {"cause": "...", "story": "...", "achievements": ["..."], "legacy": "Bagaimana dunia akan mengingat karakter ini..."}
 }
 
-Jika ada timeskip, jalankan seluruh dunia selama periode itu. Kerajaan bisa runtuh, NPC bisa mati, perang bisa terjadi. Jika gameOver, tulis legacy yang emosional dan berkesan tentang bagaimana dunia mengingat karakter ini.`,
+Jika ada timeskip, jalankan seluruh dunia selama periode itu. Kerajaan bisa runtuh, NPC bisa mati, perang bisa terjadi.`,
 }
 
 export function buildGamePrompt(
