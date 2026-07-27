@@ -95,7 +95,7 @@ function GameUI() {
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* STORY AREA */}
+        {/* SIDEBAR & QUICK LOG */}
         <div className="flex-1 flex flex-col min-w-0">
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
             {storyLog.map((log, i) => (
@@ -161,10 +161,10 @@ function GameUI() {
                     className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-800 disabled:text-zinc-600 rounded-lg text-sm font-medium"
                   >Kirim</button>
                 </div>
-                <div className="flex gap-1.5 mt-2 overflow-x-auto">
+                <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1 scrollbar-hide">
                   {quickActions.map((qa, i) => (
                     <button key={i} onClick={() => handleSubmit(qa.act)} disabled={isLoading}
-                      className="flex items-center gap-1 px-2.5 py-1.5 bg-zinc-800/60 hover:bg-zinc-700/80 border border-zinc-700/50 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 shrink-0"
+                      className="flex items-center gap-1 px-3 py-1.5 bg-zinc-800/60 hover:bg-zinc-700/80 border border-zinc-700/50 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 shrink-0 transition-all"
                     ><qa.icon size={12} /> {qa.label}</button>
                   ))}
                 </div>
