@@ -20,7 +20,7 @@ export async function callAI(
     model?: string
   }
 ): Promise<AIResponse> {
-  const model = options?.model || process.env.NEXT_PUBLIC_AI_MODEL || 'google/gemini-2.0-flash-exp:free'
+  const model = options?.model || process.env.NEXT_PUBLIC_AI_MODEL || 'meta-llama/llama-3.1-8b-instruct:free'
   const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY
   const baseUrl = process.env.NEXT_PUBLIC_AI_API_BASE || 'https://openrouter.ai/api/v1'
 
