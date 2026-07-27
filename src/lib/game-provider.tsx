@@ -47,8 +47,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true)
     setError(null)
     try {
-      // Step 1: Bikin dunia — pake format label:
-      // WORLD: namadunia | DESC: deskripsi | ERA: namaera | YEAR: angka
+      // Step 1: Bikin dunia
       const worldRaw = await callAI([
         { role: 'system', content: `Kamu adalah Dungeon Master RPG. Ciptakan dunia fantasi unik.
 
@@ -57,8 +56,8 @@ WORLD: [nama dunia maks 2 kata] | DESC: [deskripsi 1-2 kalimat] | ERA: [nama era
 
 Contoh: WORLD: Aeloria | DESC: Dunia yang diselimuti kabut ajaib, tempat para dewa berbisik lewat angin. | ERA: Era Kabut | YEAR: 1024 | GENRE: fantasy | SEASON: spring
 
-HANYA ITU. SATU BARIS. TIDAK ADA FORMAT LAIN.` }
-      ], { temperature: 0.9, maxTokens: 500 })
+HANYA ITU. SATU BARIS. TIDAK ADA TEKS LAIN.` }
+      ], { temperature: 0.9, maxTokens: 2048 })
 
       const wt = worldRaw.content
       const worldName = extract('WORLD', wt)

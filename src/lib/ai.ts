@@ -70,11 +70,25 @@ export async function callAI(
       }
 
       const content = data.choices?.[0]?.message?.content?.trim()
+      const finishReason = data.choices?.[0]?.finish_reason
+
       if (!content) {
-        // Coba cari di field lain
-        const altContent = data.choices?.[0]?.text || data.response || data.content || data.text || ''
-        console.log('[AI] alt content:', altContent.slice(0, 200))
-        throw new Error(`AI ngasih respon kosong. Struktur: ${JSON.stringify(data).slice(0, 300)}`)
+        const reasoning = data.choices?.[0]?.message?.reasoning_content?.trim() || ''
+        const textAlt = data.choices?.[0]?.text || data.response || data.content || ''
+
+        // DeepSeek: reasoning_content biasanya berisi proses mikir, 
+        // content asli kadang kosong kalo finish_reason = "length"
+        // Split: ambil bagian setelah "Answer:" atau "Jawaban:" di reasoning
+        if (reasoning) {
+          const answerMatch = reasoning.match(/(?:Answer|Jawaban|Output|RESPON|WORLD|NAME):?([\s\S]+)/i)
+          if (answerMatch) {
+            return { content: answerMatch[1].trim() }
+          }
+          // Fallback: reasoning_content itu content aslinya
+          return { content: reasoning }
+        }
+
+        throw new Error(`AI ngasih respon kosong (finish: ${finishReason})`)
       }
 
       return {
