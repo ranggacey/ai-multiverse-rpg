@@ -20,54 +20,74 @@ export async function callAI(
     model?: string
   }
 ): Promise<AIResponse> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 300000) // 5 menit
+  const model = options?.model || process.env.NEXT_PUBLIC_AI_MODEL || 'satu'
+  const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY
+  const baseUrl = process.env.NEXT_PUBLIC_AI_API_BASE || 'https://rphvgzw.abc-tunnel.us/v1'
 
-  try {
-    const res = await fetch(`${API_BASE}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: options?.model || process.env.NEXT_PUBLIC_AI_MODEL || 'satu',
-        messages,
-        max_tokens: options?.maxTokens || 4096,
-        temperature: options?.temperature ?? 0.8,
-      }),
-      signal: controller.signal,
-    })
+  let lastError: Error | null = null
 
-    clearTimeout(timeout)
+  // Retry up to 3 kali untuk handle timeout
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 180000) // 3 menit per attempt
 
-    const text = await res.text()
-    console.log('[AI] response length:', text.length)
-
-    if (!res.ok) {
-      throw new Error(`AI API error: ${res.status} - ${text.slice(0, 200)}`)
-    }
-
-    // JSON parsing yang robust
-    let data
     try {
-      data = JSON.parse(text)
-    } catch {
-      const match = text.match(/\{[\s\S]*\}/)
-      if (match) data = JSON.parse(match[0])
-      else throw new Error(`Invalid JSON: ${text.slice(0, 200)}`)
-    }
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
 
-    return {
-      content: data.choices?.[0]?.message?.content || '',
-      usage: data.usage ? {
-        promptTokens: data.usage.prompt_tokens,
-        completionTokens: data.usage.completion_tokens,
-      } : undefined,
+      const res = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model,
+          messages,
+          max_tokens: options?.maxTokens || 4096,
+          temperature: options?.temperature ?? 0.8,
+        }),
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeout)
+
+      const text = await res.text()
+
+      if (!res.ok) {
+        throw new Error(`AI API error: ${res.status} - ${text.slice(0, 200)}`)
+      }
+
+      // JSON parsing robust
+      let data
+      try {
+        data = JSON.parse(text)
+      } catch {
+        const match = text.match(/\{[\s\S]*\}/)
+        if (match) data = JSON.parse(match[0])
+        else throw new Error(`Invalid JSON: ${text.slice(0, 200)}`)
+      }
+
+      return {
+        content: data.choices?.[0]?.message?.content || '',
+        usage: data.usage ? {
+          promptTokens: data.usage.prompt_tokens,
+          completionTokens: data.usage.completion_tokens,
+        } : undefined,
+      }
+    } catch (err: any) {
+      clearTimeout(timeout)
+      lastError = err
+      // Kalo 524/timeout, coba lagi
+      if (err.name === 'AbortError' || String(err.message).includes('524')) {
+        console.log(`[AI] Attempt ${attempt} failed (timeout), retrying...`)
+        continue
+      }
+      // Error lain langsung throw
+      throw err
     }
-  } catch (err: any) {
-    clearTimeout(timeout)
-    throw err
   }
+
+  throw lastError || new Error('AI API gagal setelah 3 percobaan')
 }
 
 // System prompts
