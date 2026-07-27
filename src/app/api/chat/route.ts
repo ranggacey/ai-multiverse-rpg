@@ -4,17 +4,18 @@ export async function POST(request: NextRequest) {
   try {
     const { messages, model, maxTokens, temperature } = await request.json()
 
-    const apiKey = process.env.NINEROUTER_API_KEY
-    const baseUrl = process.env.NINEROUTER_BASE_URL || 'https://rphvgzw.abc-tunnel.us/v1'
-    const activeModel = model || process.env.NINEROUTER_MODEL || 'story-combo'
+    // Gunakan OpenRouter langsung (bukan 9Router tunnel)
+    const apiKey = process.env.OPENROUTER_API_KEY
+    const baseUrl = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1'
+    const activeModel = model || process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free'
 
-    console.log('[AI] NINEROUTER_BASE_URL:', baseUrl)
-    console.log('[AI] NINEROUTER_MODEL:', activeModel)
+    console.log('[AI] OPENROUTER_BASE_URL:', baseUrl)
+    console.log('[AI] OPENROUTER_MODEL:', activeModel)
     console.log('[AI] API Key exists:', !!apiKey)
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'API Key tidak dikonfigurasi. Set NINEROUTER_API_KEY di environment.' },
+        { error: 'API Key tidak dikonfigurasi. Set OPENROUTER_API_KEY di environment.' },
         { status: 500 }
       )
     }
@@ -27,6 +28,8 @@ export async function POST(request: NextRequest) {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://ai-multiverse-rpg.vercel.app',
+        'X-Title': 'AI Multiverse RPG',
       },
       body: JSON.stringify({
         model: activeModel,
@@ -52,7 +55,7 @@ export async function POST(request: NextRequest) {
     console.log('[AI] Raw response length:', raw.length)
     console.log('[AI] Raw response preview:', raw.slice(0, 500))
 
-// Coba parse JSON - handle kemungkinan ada teks ekstra setelah JSON
+    // Coba parse JSON - handle kemungkinan ada teks ekstra setelah JSON
     let result
     try {
       result = JSON.parse(raw)

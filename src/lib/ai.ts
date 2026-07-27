@@ -1,6 +1,3 @@
-// AI client — langsung panggil 9Router dari browser
-// Progressive world building: minimal awal, nambah gradual
-
 // AI client — langsung ke OpenRouter
 // API_BASE akan otomatis kosong di Vercel, jadi pake default OpenRouter
 
@@ -23,9 +20,9 @@ export async function callAI(
     model?: string
   }
 ): Promise<AIResponse> {
-  const model = options?.model || process.env.NEXT_PUBLIC_AI_MODEL || 'satu'
+  const model = options?.model || process.env.NEXT_PUBLIC_AI_MODEL || 'google/gemini-2.0-flash-exp:free'
   const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY
-  const baseUrl = process.env.NEXT_PUBLIC_AI_API_BASE || 'https://rphvgzw.abc-tunnel.us/v1'
+  const baseUrl = process.env.NEXT_PUBLIC_AI_API_BASE || 'https://openrouter.ai/api/v1'
 
   let lastError: Error | null = null
 
