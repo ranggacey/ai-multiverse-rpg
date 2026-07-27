@@ -49,44 +49,32 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     try {
       // Step 1: Bikin dunia
       const worldRaw = await callAI([
-        { role: 'system', content: `Kamu adalah Dungeon Master RPG. Ciptakan dunia fantasi unik.
-
-RESPON DENGAN FORMAT INI PERSIS (satu baris):
-WORLD: [nama dunia maks 2 kata] | DESC: [deskripsi 1-2 kalimat] | ERA: [nama era] | YEAR: [angka tahun] | GENRE: [genre] | SEASON: [spring/summer/autumn/winter]
-
-Contoh: WORLD: Aeloria | DESC: Dunia yang diselimuti kabut ajaib, tempat para dewa berbisik lewat angin. | ERA: Era Kabut | YEAR: 1024 | GENRE: fantasy | SEASON: spring
-
-HANYA ITU. SATU BARIS. TIDAK ADA TEKS LAIN.` }
+        { role: 'system', content: 'Kamu adalah Dungeon Master RPG dunia fantasi.' },
+        { role: 'user', content: 'Buat dunia fantasi. Balas SATU BARIS format: NAMA: | DESKRIPSI: | ERA: | TAHUN: | GENRE: | MUSIM: . Contoh: NAMA: Aeloria | DESKRIPSI: Dunia kabut ajaib | ERA: Era Kabut | TAHUN: 1024 | GENRE: fantasy | MUSIM: semi. Langsung jawab, jangan jelaskan.' }
       ], { temperature: 0.9, maxTokens: 2048 })
 
       const wt = worldRaw.content
-      const worldName = extract('WORLD', wt)
-      const worldDesc = extract('DESC', wt) || 'Dunia misterius yang penuh petualangan.'
+      const worldName = extract('NAMA', wt) || extract('WORLD', wt)
+      const worldDesc = extract('DESKRIPSI', wt) || extract('DESC', wt) || 'Dunia misterius yang penuh petualangan.'
       const worldEra = extract('ERA', wt) || 'Era Awal'
-      const worldYear = parseInt(extract('YEAR', wt)) || 1024
+      const worldYear = parseInt(extract('TAHUN', wt) || extract('YEAR', wt)) || 1024
       const worldGenre = extract('GENRE', wt) || 'fantasy'
-      const worldSeason = extract('SEASON', wt) || 'spring'
+      const worldSeason = extract('MUSIM', wt) || extract('SEASON', wt) || 'spring'
 
       if (!worldName) throw new Error(`Gagal parse nama dunia. Respon AI: ${wt.slice(0, 300)}`)
 
-      // Step 2: Bikin player — pake format label
+      // Step 2: Bikin player
       const playerRaw = await callAI([
-        { role: 'system', content: `Buat karakter untuk dunia ${worldName}: ${worldDesc}
-
-RESPON DENGAN FORMAT INI PERSIS (satu baris):
-NAME: [nama 2 suku kata] | GENDER: [Laki-laki/Perempuan] | BGTYPE: [anak petani/bangsawan/yatim/pemburu/dll] | FAMILY: [deskripsi keluarga] | FROM: [nama desa/kota lahir]
-
-Contoh: NAME: Kael | GENDER: Laki-laki | BGTYPE: anak petani | FAMILY: Anak bungsu petani miskin | FROM: Desa Oakvale
-
-HANYA ITU. SATU BARIS.` }
-      ], { temperature: 0.8, maxTokens: 500 })
+        { role: 'system', content: `Kamu bikin karakter RPG untuk ${worldName}.` },
+        { role: 'user', content: `Buat karakter. Balas SATU BARIS: NAMA: | GENDER: | LATAR: | KELUARGA: | DARI: . Contoh: NAMA: Kael | GENDER: Laki-laki | LATAR: anak petani | KELUARGA: anak bungsu petani miskin | DARI: Desa Oakvale. Langsung jawab, jangan jelaskan.` }
+      ], { temperature: 0.8, maxTokens: 2048 })
 
       const pt = playerRaw.content
-      const playerName = extract('NAME', pt)
+      const playerName = extract('NAMA', pt) || extract('NAME', pt)
       const playerGender = extract('GENDER', pt) || 'Laki-laki'
-      const playerBgType = extract('BGTYPE', pt) || 'anak petani'
-      const playerFamily = extract('FAMILY', pt) || 'keluarga sederhana'
-      const playerFrom = extract('FROM', pt) || 'desa terpencil'
+      const playerBgType = extract('LATAR', pt) || extract('BGTYPE', pt) || 'anak petani'
+      const playerFamily = extract('KELUARGA', pt) || extract('FAMILY', pt) || 'keluarga sederhana'
+      const playerFrom = extract('DARI', pt) || extract('FROM', pt) || 'desa terpencil'
 
       if (!playerName) throw new Error(`Gagal parse nama player. Respon AI: ${pt.slice(0, 300)}`)
 
