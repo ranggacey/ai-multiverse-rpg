@@ -33,7 +33,8 @@ export async function callAI(
     throw new Error(data.error || `HTTP ${res.status}`)
   }
 
-  return res.json()
+  const data = await res.json()
+  return data
 }
 
 // System prompts for different game phases

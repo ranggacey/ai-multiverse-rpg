@@ -43,12 +43,31 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const data = await res.json()
+    const raw = await res.text()
+
+// Coba parse JSON - handle kemungkinan ada teks ekstra setelah JSON
+    let result
+    try {
+      result = JSON.parse(raw)
+    } catch {
+      // Fallback: cari JSON object di dalam teks
+      const jsonMatch = raw.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        try {
+          result = JSON.parse(jsonMatch[0])
+        } catch {
+          throw new Error(`Invalid JSON response: ${raw.slice(0, 300)}`)
+        }
+      } else {
+        throw new Error(`Invalid JSON response: ${raw.slice(0, 300)}`)
+      }
+    }
+
     return NextResponse.json({
-      content: data.choices?.[0]?.message?.content || '',
-      usage: data.usage ? {
-        promptTokens: data.usage.prompt_tokens,
-        completionTokens: data.usage.completion_tokens,
+      content: result.choices?.[0]?.message?.content || '',
+      usage: result.usage ? {
+        promptTokens: result.usage.prompt_tokens,
+        completionTokens: result.usage.completion_tokens,
       } : undefined,
     })
   } catch (err: any) {
