@@ -5,7 +5,7 @@ import type { Player, WorldSettings, WorldMemory } from './types'
 
 const API_BASE = process.env.NEXT_PUBLIC_AI_API_BASE || 'https://rphvgzw.abc-tunnel.us/v1'
 const API_KEY = process.env.NEXT_PUBLIC_AI_API_KEY || 'sk-placeholder'
-const AI_MODEL = process.env.NEXT_PUBLIC_AI_MODEL || 'deepseek/deepseek-v4'
+const AI_MODEL = process.env.NEXT_PUBLIC_AI_MODEL || 'oc/deepseek-v4-flash-free'
 
 export interface AIResponse {
   content: string
