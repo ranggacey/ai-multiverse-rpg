@@ -3,10 +3,11 @@
 import { GameProvider, useGame } from '@/lib/game-provider'
 import { formatDate, formatTimePlayed } from '@/lib/game'
 import type { Quest } from '@/lib/types'
-import { useEffect, useState, useRef } from 'react'
+import type { WorldEvent } from '@/lib/types'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Biography from './biography'
-import { ArrowLeft, BookOpen, User, Map, Scroll, Eye, Download, Upload, Menu, Trophy, ChevronDown, ChevronUp, X } from 'lucide-react'
+import { ArrowLeft, BookOpen, User, Map, Scroll, Eye, Download, Upload, Menu, Trophy, ChevronDown, ChevronUp, X, Swords, Sparkles, Compass, Heart, ShoppingBag, Handshake, Play, Users } from 'lucide-react'
 
 type GameTab = 'story' | 'stats' | 'inventory' | 'world' | 'log'
 
@@ -19,8 +20,11 @@ function GameUI() {
   const [showBiography, setShowBiography] = useState(false)
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
   const [savedToast, setSavedToast] = useState(false)
+  const [worldEventToasts, setWorldEventToasts] = useState<Array<{ id: string; title: string; description: string; removing: boolean }>>([])
+  const [showQuickActions, setShowQuickActions] = useState(true)
   const storyEndRef = useRef<HTMLDivElement>(null)
   const storyContainerRef = useRef<HTMLDivElement>(null)
+  const prevEventCountRef = useRef(0)
   const router = useRouter()
 
   useEffect(() => { storyEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [gameState?.storyLog, gameState?.storyLog?.length])
@@ -35,6 +39,28 @@ function GameUI() {
     }
   }, [gameState?.storyLog?.length])
 
+  // World event toast notifications
+  useEffect(() => {
+    if (!gameState) return
+    const events = gameState.worldEvents?.filter(e => !e.resolved) || []
+    if (events.length > prevEventCountRef.current && prevEventCountRef.current > 0) {
+      const newEvents = events.slice(prevEventCountRef.current)
+      newEvents.forEach((ev, i) => {
+        const id = ev.id || crypto.randomUUID()
+        setTimeout(() => {
+          setWorldEventToasts(prev => [...prev, { id, title: ev.title, description: ev.description.slice(0, 100), removing: false }])
+          setTimeout(() => {
+            setWorldEventToasts(prev => prev.map(t => t.id === id ? { ...t, removing: true } : t))
+            setTimeout(() => {
+              setWorldEventToasts(prev => prev.filter(t => t.id !== id))
+            }, 300)
+          }, 4000)
+        }, i * 500)
+      })
+    }
+    prevEventCountRef.current = events.length
+  }, [gameState?.worldEvents])
+
   const showSavedToast = () => {
     setSavedToast(true)
     setTimeout(() => setSavedToast(false), 2000)
@@ -43,6 +69,25 @@ function GameUI() {
   const handleSave = async () => {
     await saveCurrentGame()
     showSavedToast()
+  }
+
+  const quickActions = [
+    { label: 'Jelajahi', action: 'Menjelajahi daerah sekitar', icon: Compass },
+    { label: 'Bicara', action: 'Mencari seseorang untuk diajak bicara', icon: Handshake },
+    { label: 'Bertarung', action: 'Mencari tantangan atau berlatih bertarung', icon: Swords },
+    { label: 'Bersantai', action: 'Beristirahat dan memulihkan tenaga', icon: Heart },
+    { label: 'Belanja', action: 'Mencari tempat untuk berdagang atau membeli kebutuhan', icon: ShoppingBag },
+  ]
+
+  const handleQuickAction = async (act: string) => {
+    if (!action.trim() && act) {
+      setAction(act)
+      await submitAction(act)
+      setAction('')
+    } else if (action.trim()) {
+      await submitAction(action.trim())
+      setAction('')
+    }
   }
 
   if (!gameState) return (
@@ -177,6 +222,9 @@ function GameUI() {
               <div className="mb-3 p-4 bg-red-950/30 border border-red-800/30 rounded-lg">
                 <p className="text-red-300 font-medium mb-1">☠️ {player.name} telah tiada</p>
                 <p className="text-sm text-zinc-400">{deathRecord.cause}</p>
+                {deathRecord.legacy && (
+                  <p className="text-xs text-zinc-500 mt-1 italic">&ldquo;{deathRecord.legacy}&rdquo;</p>
+                )}
                 <p className="text-xs text-zinc-500 mt-2">Usia {deathRecord.age} tahun · Bab {gameState.currentChapter} · {formatDate(deathRecord.date)}</p>
                 <div className="mt-2 flex gap-2 flex-wrap">
                   <button onClick={() => setShowBiography(true)} className="text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded">
@@ -192,19 +240,37 @@ function GameUI() {
               </div>
             )}
             {isAlive && (
-              <div className="flex gap-2">
-                <input
-                  value={action}
-                  onChange={e => setAction(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ketik aksi atau dialog..."
-                  disabled={isLoading}
-                  className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 placeholder:text-zinc-600 disabled:opacity-50"
-                />
-                <button onClick={handleSubmit} disabled={isLoading || !action.trim()}
-                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-800 disabled:text-zinc-600 rounded-lg text-sm font-medium transition-all"
-                >Kirim</button>
-              </div>
+              <>
+                <div className="flex gap-2">
+                  <input
+                    value={action}
+                    onChange={e => setAction(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Ketik aksi atau dialog..."
+                    disabled={isLoading}
+                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 placeholder:text-zinc-600 disabled:opacity-50"
+                  />
+                  <button onClick={handleSubmit} disabled={isLoading || !action.trim()}
+                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-800 disabled:text-zinc-600 rounded-lg text-sm font-medium transition-all"
+                  >Kirim</button>
+                </div>
+                {/* Quick Action Buttons */}
+                {showQuickActions && (
+                  <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1">
+                    {quickActions.map((qa, i) => (
+                      <button
+                        key={i}
+                        onClick={() => { setAction(qa.action); handleSubmit() }}
+                        disabled={isLoading}
+                        className="quick-action-btn flex items-center gap-1 px-2.5 py-1.5 bg-zinc-800/60 hover:bg-zinc-700/80 border border-zinc-700/50 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 shrink-0 disabled:opacity-30"
+                      >
+                        <qa.icon size={12} />
+                        {qa.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -312,23 +378,52 @@ function GameUI() {
 
               {/* World */}
               <div className={activeTab === 'world' ? '' : 'hidden'}>
-                <p className="text-xs font-medium text-zinc-400 mb-2">{world?.name}</p>
+                <div className="flex items-center gap-2 mb-2">
+                  <Map size={14} className="text-indigo-400" />
+                  <p className="text-xs font-medium text-zinc-300">{world?.name}</p>
+                </div>
                 <p className="text-xs text-zinc-500 leading-relaxed">{world?.description?.slice(0, 200)}</p>
                 
-                <div className="mt-3 space-y-2">
-                  <p className="text-xs text-zinc-400 font-medium">Sistem Kekuatan</p>
-                  {world?.powerSystems?.map((ps, i) => (
-                    <div key={i} className="text-xs text-zinc-500">
-                      • {ps.name} — {ps.description?.slice(0, 80)}
+                {world?.powerSystems && world.powerSystems.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs text-zinc-400 font-medium flex items-center gap-1">
+                      <Sparkles size={11} /> Sistem Kekuatan
+                    </p>
+                    {world.powerSystems.map((ps, i) => (
+                      <div key={i} className="text-xs text-zinc-500">
+                        • {ps.name} — {ps.description?.slice(0, 80)}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* NPCs in current location */}
+                {gameState.npcs && gameState.npcs.filter(n => n.location === player.location).length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs text-zinc-400 font-medium mb-1.5 flex items-center gap-1">
+                      <Users size={11} /> NPC di {player.location}
+                    </p>
+                    <div className="space-y-1.5">
+                      {gameState.npcs.filter(n => n.location === player.location).slice(0, 5).map((npc, i) => (
+                        <div key={npc.id || i} className="text-xs flex items-center justify-between bg-zinc-800/30 rounded px-2 py-1.5">
+                          <span className={`${npc.isAlive === false ? 'text-zinc-600 line-through' : 'text-zinc-300'}`}>
+                            {npc.name}
+                          </span>
+                          <span className="text-zinc-500">{npc.occupation}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
 
                 {gameState.worldEvents.filter(e => !e.resolved).length > 0 && (
                   <div className="mt-3">
                     <p className="text-xs text-red-400 font-medium mb-1">Peristiwa Aktif</p>
-                    {gameState.worldEvents.filter(e => !e.resolved).slice(0, 3).map((ev, i) => (
-                      <div key={ev.id || i} className="text-xs text-zinc-400 mb-1">• {ev.title}</div>
+                    {gameState.worldEvents.filter(e => !e.resolved).slice(0, 4).map((ev, i) => (
+                      <div key={ev.id || i} className="text-xs text-zinc-400 mb-1 flex items-start gap-1">
+                        <span className="text-red-500 mt-0.5">●</span>
+                        <span>{ev.title}</span>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -352,6 +447,19 @@ function GameUI() {
           </div>
         )}
       </div>
+
+      {/* World Event Toasts */}
+      {worldEventToasts.map(toast => (
+        <div key={toast.id} className={`fixed top-16 left-1/2 -translate-x-1/2 z-40 ${toast.removing ? 'world-event-toast removing' : 'world-event-toast'}`}>
+          <div className="px-4 py-2.5 bg-red-950/90 border border-red-700/50 rounded-xl text-xs shadow-xl shadow-red-900/30 max-w-md">
+            <div className="flex items-center gap-2 mb-0.5">
+              <Sparkles size={12} className="text-red-400" />
+              <span className="font-medium text-red-300">Peristiwa Dunia: {toast.title}</span>
+            </div>
+            <p className="text-zinc-400 ml-5">{toast.description}</p>
+          </div>
+        </div>
+      ))}
 
       {/* Parallel Story Overlay */}
       {hasParallelUnread && (

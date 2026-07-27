@@ -219,7 +219,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           cause: parsed.gameOver.cause,
           story: parsed.gameOver.story,
           achievements: parsed.gameOver.achievements || [],
-          legacy: '',
+          legacy: parsed.gameOver.legacy || '',
         }
       }
 

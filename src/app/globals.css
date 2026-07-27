@@ -117,6 +117,51 @@
   animation: storyFadeIn 0.5s ease-out forwards;
 }
 
+/* Per-character typewriter for narration */
+@keyframes revealChar {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+.typewriter-narration {
+  display: inline;
+  animation: revealChar 0.03s steps(1) forwards;
+  white-space: pre-wrap;
+}
+
+/* World event toast */
+@keyframes slideInDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideOutUp {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-20px); }
+}
+.world-event-toast {
+  animation: slideInDown 0.4s ease-out forwards;
+}
+.world-event-toast.removing {
+  animation: slideOutUp 0.3s ease-in forwards;
+}
+
+/* Pulse glow for important elements */
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 5px rgba(99, 102, 241, 0.3); }
+  50% { box-shadow: 0 0 15px rgba(99, 102, 241, 0.6); }
+}
+.glow-pulse {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+/* Quick action button hover */
+.quick-action-btn {
+  transition: all 0.2s ease;
+}
+.quick-action-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.2);
+}
+
 /* Parallel story glow */
 @keyframes parallelGlow {
   0%, 100% { border-color: rgba(99, 102, 241, 0.2); }
