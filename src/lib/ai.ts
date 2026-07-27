@@ -1,14 +1,29 @@
-// AI client — langsung ke OpenRouter
-// API_BASE akan otomatis kosong di Vercel, jadi pake default OpenRouter
+// AI client — langsung ke Google Gemini API (AI Studio)
+// Format: OpenAI-compatible via OpenRouter removed, now direct Gemini
 
-const API_BASE = process.env.NEXT_PUBLIC_AI_API_BASE || 'https://openrouter.ai/api/v1'
-const API_KEY = process.env.NEXT_PUBLIC_AI_API_KEY || ''
+const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || ''
+const GEMINI_MODEL = process.env.NEXT_PUBLIC_GEMINI_MODEL || 'gemini-1.5-flash'
+const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 
 export interface AIResponse {
   content: string
   usage?: {
     promptTokens: number
     completionTokens: number
+  }
+}
+
+// Convert OpenAI format messages to Gemini format
+function convertToGemini(messages: { role: string; content: string }[]) {
+  const systemPrompt = messages.find(m => m.role === 'system')?.content || ''
+  const userMessages = messages.filter(m => m.role !== 'system')
+  
+  return {
+    systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
+    contents: userMessages.map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }]
+    }))
   }
 }
 
@@ -20,29 +35,36 @@ export async function callAI(
     model?: string
   }
 ): Promise<AIResponse> {
-  const model = options?.model || process.env.NEXT_PUBLIC_AI_MODEL || 'google/gemma-2-9b-it:free'
-  const apiKey = process.env.NEXT_PUBLIC_AI_API_KEY
-  const baseUrl = process.env.NEXT_PUBLIC_AI_API_BASE || 'https://openrouter.ai/api/v1'
+  const model = options?.model || process.env.NEXT_PUBLIC_GEMINI_MODEL || 'gemini-1.5-flash'
+  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY
+  const baseUrl = `${GEMINI_BASE}/${model}:generateContent`
+
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY tidak diset. Set NEXT_PUBLIC_GEMINI_API_KEY di env.')
+  }
 
   let lastError: Error | null = null
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 180000)
+    const timeout = setTimeout(() => controller.abort(), 120000)
 
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
+      const { systemInstruction, contents } = convertToGemini(messages)
+      
+      const body: any = { contents }
+      if (systemInstruction) body.systemInstruction = systemInstruction
+      if (options?.temperature !== undefined) {
+        body.generationConfig = { temperature: options.temperature }
+      }
+      if (options?.maxTokens) {
+        body.generationConfig = { ...body.generationConfig, maxOutputTokens: options.maxTokens }
+      }
 
-      const res = await fetch(`${baseUrl}/chat/completions`, {
+      const res = await fetch(`${baseUrl}?key=${apiKey}`, {
         method: 'POST',
-        headers,
-        body: JSON.stringify({
-          model,
-          messages,
-          max_tokens: options?.maxTokens || 4096,
-          temperature: options?.temperature ?? 0.8,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
         signal: controller.signal,
       })
 
@@ -50,73 +72,48 @@ export async function callAI(
       const text = await res.text()
 
       if (!res.ok) {
-        throw new Error(`AI API error: ${res.status} - ${text.slice(0, 200)}`)
+        throw new Error(`Gemini API error: ${res.status} - ${text.slice(0, 200)}`)
       }
 
       let data
       try {
         data = JSON.parse(text)
       } catch {
-        const match = text.match(/\{[\s\S]*\}/)
-        if (match) data = JSON.parse(match[0])
-        else throw new Error(`Invalid JSON: ${text.slice(0, 200)}`)
+        throw new Error(`Invalid JSON: ${text.slice(0, 200)}`)
       }
 
-      // Debug: log struktur response
-      console.log('[AI] response keys:', Object.keys(data))
-      if (data.choices?.[0]) {
-        console.log('[AI] choice[0] keys:', Object.keys(data.choices[0]))
-        console.log('[AI] message:', JSON.stringify(data.choices[0].message).slice(0, 300))
-      }
+      console.log('[Gemini] response:', JSON.stringify(data).slice(0, 300))
 
-      const content = data.choices?.[0]?.message?.content?.trim()
-      const finishReason = data.choices?.[0]?.finish_reason
-
+      // Extract content from Gemini response format
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
+      
       if (!content) {
-        const reasoning = data.choices?.[0]?.message?.reasoning_content?.trim() || ''
-        const textAlt = data.choices?.[0]?.text || data.response || data.content || ''
-
-        // DeepSeek: reasoning_content biasanya berisi proses mikir,
-        // content asli kadang kosong kalo finish_reason = "length"
-        // Split: ambil bagian setelah "Answer:" atau "Jawaban:" di reasoning
-        if (reasoning) {
-          const answerMatch = reasoning.match(/(?:Answer|Jawaban|Output|RESPON|WORLD|NAME):?([\s\S]+)/i)
-          if (answerMatch) {
-            return { content: answerMatch[1].trim() }
-          }
-          // Fallback: reasoning_content itu content aslinya
-          return { content: reasoning }
-        }
-
-        throw new Error(`AI ngasih respon kosong (finish: ${finishReason})`)
+        throw new Error(`Gemini ngasih respon kosong: ${JSON.stringify(data).slice(0, 200)}`)
       }
 
       return {
         content,
-        usage: data.usage ? {
-          promptTokens: data.usage.prompt_tokens,
-          completionTokens: data.usage.completion_tokens,
+        usage: data.usageMetadata ? {
+          promptTokens: data.usageMetadata.promptTokenCount || 0,
+          completionTokens: data.usageMetadata.candidatesTokenCount || 0,
         } : undefined,
       }
     } catch (err: any) {
       clearTimeout(timeout)
       lastError = err
-      if (err.name === 'AbortError' || String(err.message).includes('524')) {
-        console.log(`[AI] Attempt ${attempt} timeout, retrying...`)
+      if (err.name === 'AbortError' || err.message.includes('timeout')) {
+        console.log(`[Gemini] Attempt ${attempt} timeout, retrying...`)
         continue
       }
       throw err
     }
   }
-  throw lastError || new Error('AI API gagal setelah 3 percobaan')
+  throw lastError || new Error('Gemini API gagal setelah 3 percobaan')
 }
 
 // ============================================================
 // SYSTEM PROMPTS — PROGRESSIVE WORLD BUILDING
 // ============================================================
-// Fase 1: Dunia lahir MINIMALIS — cuma esensi
-// Fase 2+ : Nambah detail seiring pemain main
-// System prompt untuk game master — narasi puitis + embedded labels
 export const GAME_MASTER_PROMPT = `Kamu adalah Dungeon Master AI. Ceritakan kisah fantasi yang hidup dalam bahasa Indonesia.
 
 ATURAN NARASI:
