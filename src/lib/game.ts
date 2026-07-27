@@ -7,8 +7,8 @@ export function createInitialState(): GameState {
     createdAt: Date.now(),
     updatedAt: Date.now(),
     playTime: 0,
-    player: null as any,
-    world: null as any,
+    player: null as unknown as Player,
+    world: null as unknown as WorldSettings,
     npcs: [],
     storyLog: [],
     parallelStories: [],
@@ -20,7 +20,7 @@ export function createInitialState(): GameState {
 
 export function buildWorldMemory(gameState: GameState): WorldMemory {
   return {
-    worldState: summarizeWorld(gameState.world, gameState.worldEvents),
+    worldState: summarizeWorld(gameState.world),
     playerSummary: summarizePlayer(gameState.player),
     recentEvents: gameState.storyLog.slice(-20).map(l => `[Usia ${l.playerAge}] ${String(l.content).slice(0, 200)}`).join('\n'),
     activeQuests: (gameState.player?.quests || [])
@@ -36,7 +36,7 @@ export function buildWorldMemory(gameState: GameState): WorldMemory {
   }
 }
 
-function summarizeWorld(world: WorldSettings, events: any[]): string {
+function summarizeWorld(world: WorldSettings): string {
   if (!world) return 'Belum ada dunia'
   return `${world.name} — ${world.genres.join(', ')}
 Periode: ${world.currentDate?.era || 'Era Awal'} Tahun ${world.currentDate?.year || 0}

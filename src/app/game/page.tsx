@@ -2,18 +2,18 @@
 
 import { GameProvider, useGame } from '@/lib/game-provider'
 import { formatDate, formatTimePlayed } from '@/lib/game'
+import type { Quest } from '@/lib/types'
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Biography from './biography'
-import { ArrowLeft, BookOpen, Sword, User, Map, Scroll, Eye, Download, Upload, Clock, Heart, Star, ChevronDown, ChevronUp, Plus, X, Menu, Trophy, Shield, Swords } from 'lucide-react'
+import { ArrowLeft, BookOpen, User, Map, Scroll, Eye, Download, Upload, Menu, Trophy, ChevronDown, ChevronUp, X } from 'lucide-react'
 
 type GameTab = 'story' | 'stats' | 'inventory' | 'world' | 'log'
 
 function GameUI() {
-  const { gameState, isLoading, error, submitAction, saveCurrentGame, exportSave, refreshSaves } = useGame()
+  const { gameState, isLoading, error, submitAction, saveCurrentGame, exportSave } = useGame()
   const [action, setAction] = useState('')
   const [activeTab, setActiveTab] = useState<GameTab>('story')
-  const [typewriterDone, setTypewriterDone] = useState(true)
   const [showParallel, setShowParallel] = useState(false)
   const [showSidebar, setShowSidebar] = useState(true)
   const [showBiography, setShowBiography] = useState(false)
@@ -55,7 +55,6 @@ function GameUI() {
   )
 
   const { player, world, storyLog, parallelStories, isAlive, deathRecord } = gameState
-  const lastLog = storyLog[storyLog.length - 1]
   const hasParallelUnread = parallelStories.length > 0 && !showParallel
 
   // Player stats helper
@@ -125,14 +124,13 @@ function GameUI() {
         <div className="flex-1 flex flex-col min-w-0">
           {/* Story Log */}
           <div ref={storyContainerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-            {storyLog.map((log, i) => {
-              const isLast = i === storyLog.length - 1
+            {storyLog.map((log) => {
               const isParallel = log.type === 'parallel'
               const isTimeSkip = log.type === 'timeSkip'
               const isSystem = log.type === 'system'
               
               return (
-                <div key={log.id} className={`story-fade-in ${isLast ? (typewriterDone ? '' : 'typewriter-cursor') : ''}`}>
+                <div key={log.id} className="story-fade-in">               
                   {isTimeSkip ? (
                     <div className="flex items-center gap-3 py-4 text-zinc-600">
                       <div className="flex-1 h-px bg-zinc-800" />
@@ -338,10 +336,10 @@ function GameUI() {
 
               {/* Log */}
               <div className={activeTab === 'log' ? '' : 'hidden'}>
-                {player.quests.filter((q: any) => q.status === 'active').length > 0 && (
+                {player.quests.filter((q: Quest) => q.status === 'active').length > 0 && (
                   <div className="mb-3">
                     <p className="text-xs font-medium text-amber-400 mb-2">Quest Aktif</p>
-                    {player.quests.filter((q: any) => q.status === 'active').map((q: any, i: number) => (
+                    {player.quests.filter((q: Quest) => q.status === 'active').map((q: Quest, i: number) => (
                       <div key={q.id || i} className="text-xs text-zinc-300 mb-1">• {q.title}</div>
                     ))}
                   </div>

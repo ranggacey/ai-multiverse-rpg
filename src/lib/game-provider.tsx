@@ -1,8 +1,8 @@
 'use client'
 
-import { createContext, useContext, useCallback, useRef, useState } from 'react'
-import type { GameState, StoryLog, Player } from '@/lib/types'
-import { createInitialState, buildWorldMemory, generateSaveName } from '@/lib/game'
+import { createContext, useContext, useCallback, useRef, useState, useEffect } from 'react'
+import type { GameState, StoryLog } from '@/lib/types'
+import { createInitialState, buildWorldMemory } from '@/lib/game'
 import { callAI, SYSTEM_PROMPTS, buildGamePrompt } from '@/lib/ai'
 import { saveGame, loadGame, listSaves, deleteSave, type SaveMeta } from '@/lib/storage'
 
@@ -29,17 +29,24 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const [saves, setSaves] = useState<SaveMeta[]>([])
   const gameRef = useRef(gameState)
-  gameRef.current = gameState
+
+  // Sync ref with state outside render
+  useEffect(() => {
+    gameRef.current = gameState
+  }, [gameState])
+
+  const refreshSaves = useCallback(async () => {
+    const s = await listSaves()
+    setSaves(s)
+  }, [])
 
   const newGame = useCallback(async () => {
     setIsLoading(true)
     setError(null)
     try {
-      // Step 1: Create world
       const worldRes = await callAI([{ role: 'system', content: SYSTEM_PROMPTS.createWorld }], { temperature: 0.9, maxTokens: 4096 })
       const worldData = JSON.parse(worldRes.content.replace(/```json\n?|\n?```/g, '').trim())
       
-      // Step 2: Create player
       const playerRes = await callAI([
         { role: 'system', content: SYSTEM_PROMPTS.createPlayer },
         { role: 'system', content: `Dunia: ${JSON.stringify(worldData)}` },
@@ -83,8 +90,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       
       setGameState(state)
       await saveGame(state.id, state)
-    } catch (e: any) {
-      setError(`Gagal membuat dunia: ${e.message}`)
+    } catch (e: unknown) {
+      setError(`Gagal membuat dunia: ${e instanceof Error ? e.message : String(e)}`)
     }
     setIsLoading(false)
   }, [])
@@ -111,25 +118,28 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         if (upd.statChanges) {
           newState.player.stats = { ...newState.player.stats }
           Object.entries(upd.statChanges).forEach(([k, v]) => {
-            if (typeof v === 'number') (newState.player.stats as any)[k] = Math.max(0, Math.min(100, (newState.player.stats as any)[k] + v))
+            if (typeof v === 'number') {
+              const s = newState.player.stats as unknown as Record<string, number>
+              s[k] = Math.max(0, Math.min(100, s[k] + v))
+            }
           })
         }
         if (upd.skillGains) {
           newState.player.skills = [...(newState.player.skills || [])]
-          upd.skillGains.forEach((sg: any) => {
+          upd.skillGains.forEach((sg: { name: string; level?: number; type?: string; description?: string }) => {
             const existing = newState.player.skills.find(s => s.name === sg.name)
             if (existing) existing.level += sg.level || 1
-            else newState.player.skills.push({ name: sg.name, level: sg.level || 1, maxLevel: 100, type: sg.type || 'combat', description: sg.description || '' })
+            else newState.player.skills.push({ name: sg.name, level: sg.level || 1, maxLevel: 100, type: (sg.type || 'combat') as 'combat' | 'magic' | 'craft' | 'social' | 'knowledge', description: sg.description || '' })
           })
         }
         if (upd.items) {
           newState.player.inventory = [...(newState.player.inventory || [])]
-          upd.items.forEach((it: any) => {
+          upd.items.forEach((it: { name: string; type?: string; rarity?: string; description?: string; value?: number }) => {
             newState.player.inventory.push({
               id: crypto.randomUUID(),
               name: it.name,
-              type: it.type || 'material',
-              rarity: it.rarity || 'common',
+              type: (it.type || 'material') as 'weapon' | 'armor' | 'potion' | 'scroll' | 'artifact' | 'material' | 'food' | 'treasure' | 'quest',
+              rarity: (it.rarity || 'common') as 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary',
               description: it.description || '',
               value: it.value || 0,
               equipped: false,
@@ -140,7 +150,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         if (upd.wealthChange) newState.player.wealth += upd.wealthChange
       }
 
-      // Add story log
       const logEntry: StoryLog = {
         id: crypto.randomUUID(),
         date: { ...newState.world.currentDate },
@@ -151,7 +160,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       }
       newState.storyLog = [...newState.storyLog, logEntry]
 
-      // Handle time skip
       if (parsed.timeSkip) {
         const ts = parsed.timeSkip
         newState.world.currentDate.year += ts.years || 0
@@ -168,7 +176,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         })
       }
 
-      // Handle parallel story
       if (parsed.parallelStory) {
         newState.parallelStories = [...newState.parallelStories, {
           id: crypto.randomUUID(),
@@ -181,22 +188,20 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         }]
       }
 
-      // Handle world events
       if (parsed.worldEvents) {
-        newState.worldEvents = [...newState.worldEvents, ...parsed.worldEvents.map((we: any) => ({
+        newState.worldEvents = [...newState.worldEvents, ...parsed.worldEvents.map((we: { title: string; description: string; affected?: string }) => ({
           id: crypto.randomUUID(),
           date: { ...newState.world.currentDate },
           title: we.title,
           description: we.description,
           affectedKingdoms: we.affected ? [we.affected] : [],
-          affectedNPCs: [],
+          affectedNPCs: [] as string[],
           severity: 'major' as const,
           type: 'political' as const,
           resolved: false,
         }))]
       }
 
-      // Handle game over
       if (parsed.gameOver) {
         newState.isAlive = false
         newState.deathRecord = {
@@ -215,8 +220,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       
       setGameState(newState)
       await saveGame(newState.id, newState)
-    } catch (e: any) {
-      setError(`AI merespon: ${e.message}`)
+    } catch (e: unknown) {
+      setError(`AI merespon: ${e instanceof Error ? e.message : String(e)}`)
     }
     setIsLoading(false)
   }, [])
@@ -234,12 +239,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const deleteSaveGame = useCallback(async (id: string) => {
     await deleteSave(id)
     await refreshSaves()
-  }, [])
-
-  const refreshSaves = useCallback(async () => {
-    const s = await listSaves()
-    setSaves(s)
-  }, [])
+  }, [refreshSaves])
 
   const exportSave = useCallback(async () => {
     if (!gameRef.current) return

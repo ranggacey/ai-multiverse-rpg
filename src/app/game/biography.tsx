@@ -86,7 +86,7 @@ export default function Biography({ gameState, onClose, onExport, onReturn }: Bi
             </div>
             <div className="p-4 bg-zinc-800/30 border border-zinc-800 rounded-xl">
               <p className="text-sm text-zinc-400 leading-relaxed italic">
-                "{deathRecord.story}"
+                &ldquo;{deathRecord.story}&rdquo;
               </p>
             </div>
           </div>

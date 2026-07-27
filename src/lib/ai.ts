@@ -1,8 +1,10 @@
 // AI API client for 9Router
 // Uses the provided API endpoint: https://rphvgzw.abc-tunnel.us/v1
 
+import type { Player, WorldSettings, WorldMemory } from './types'
+
 const API_BASE = 'https://rphvgzw.abc-tunnel.us/v1'
-const API_KEY = 'sk-placeholder' // 9Router might not need auth or use different auth
+const API_KEY = '«redacted:sk-…»' // 9Router might not need auth or use different auth
 
 export interface AIResponse {
   content: string
@@ -147,9 +149,9 @@ Respon dalam JSON dengan format yang sama seperti gameMaster.`
 }
 
 export function buildGamePrompt(
-  world: any,
-  player: any,
-  memory: any,
+  world: WorldSettings,
+  player: Player,
+  memory: WorldMemory,
   action: string,
   recentLog: string[]
 ): { role: string; content: string }[] {

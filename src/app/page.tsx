@@ -2,13 +2,12 @@
 
 import { GameProvider, useGame } from '@/lib/game-provider'
 import { formatTimePlayed } from '@/lib/game'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 
 function MainMenu() {
   const { newGame, isLoading, error, saves, refreshSaves, continueGame, deleteSaveGame, exportSave, importSave } = useGame()
-  const [importing, setImporting] = useState(false)
 
-  useEffect(() => { refreshSaves() }, [])
+  useEffect(() => { refreshSaves() }, [refreshSaves])
 
   const handleImport = async () => {
     const input = document.createElement('input')

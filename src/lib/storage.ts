@@ -3,6 +3,8 @@
 // IndexedDB storage for game saves
 // More stable than localStorage for large data
 
+import type { GameState } from './types'
+
 const DB_NAME = 'ai-multiverse-rpg'
 const DB_VERSION = 1
 const STORE_NAME = 'saves'
@@ -41,9 +43,9 @@ export async function listSaves(): Promise<SaveMeta[]> {
   const req = store.getAll()
   return new Promise((resolve, reject) => {
     req.onsuccess = () => {
-      const saves = (req.result as any[]).map(s => ({
+      const saves = (req.result as GameState[]).map(s => ({
         id: s.id,
-        name: s.name || s.player?.name || 'Unknown',
+        name: s.player?.name || 'Unknown',
         createdAt: s.createdAt,
         updatedAt: s.updatedAt,
         playerName: s.player?.name || 'Unknown',
@@ -59,7 +61,7 @@ export async function listSaves(): Promise<SaveMeta[]> {
   })
 }
 
-export async function saveGame(id: string, data: any): Promise<void> {
+export async function saveGame(id: string, data: GameState): Promise<void> {
   const db = await openDB()
   const tx = db.transaction(STORE_NAME, 'readwrite')
   const store = tx.objectStore(STORE_NAME)
@@ -70,7 +72,7 @@ export async function saveGame(id: string, data: any): Promise<void> {
   })
 }
 
-export async function loadGame(id: string): Promise<any> {
+export async function loadGame(id: string): Promise<GameState | undefined> {
   const db = await openDB()
   const tx = db.transaction(STORE_NAME, 'readonly')
   const store = tx.objectStore(STORE_NAME)
@@ -94,6 +96,7 @@ export async function deleteSave(id: string): Promise<void> {
 
 export async function exportSave(id: string): Promise<string> {
   const data = await loadGame(id)
+  if (!data) throw new Error('Save not found')
   const json = JSON.stringify(data, null, 2)
   const blob = new Blob([json], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
