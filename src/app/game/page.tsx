@@ -389,10 +389,209 @@ function GameUI() {
                   )}
                 </div>
               )}
+
+              {/* COMBAT tab */}
+              {activeTab === 'combat' && (
+                <div>
+                  {combat?.inCombat && combat.enemy ? (
+                    <div className="space-y-3">
+                      {/* Enemy Info */}
+                      <div className="p-3 bg-red-950/20 border border-red-900/30 rounded-xl">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">{combat.enemy.isBoss ? '👑' : '⚔️'}</span>
+                            <div>
+                              <p className="text-sm font-medium text-red-300">{combat.enemy.name}</p>
+                              <p className="text-xs text-zinc-500">Lv.{combat.enemy.level} · {combat.enemy.description}</p>
+                            </div>
+                          </div>
+                          <span className="text-xs px-2 py-1 bg-red-900/50 text-red-300 rounded-full">MUSUH</span>
+                        </div>
+                        <div className="h-2 bg-zinc-800 rounded-full overflow-hidden mb-2">
+                          <div className="h-full bg-red-500 rounded-full transition-all duration-300" style={{ width: `${combat.enemyMaxHp > 0 ? (combat.enemyHp / combat.enemyMaxHp) * 100 : 0}%` }} />
+                        </div>
+                        <div className="flex justify-between text-xs text-zinc-500">
+                          <span>HP: {combat.enemyHp} / {combat.enemyMaxHp}</span>
+                          <span>ATK: {combat.enemy.attack} | DEF: {combat.enemy.defense} | SPD: {combat.enemy.speed}</span>
+                        </div>
+                      </div>
+
+                      {/* Player Combat Stats */}
+                      <div className="p-3 bg-zinc-800/50 border border-zinc-800 rounded-xl">
+                        <p className="text-xs font-medium text-zinc-400 mb-2 flex items-center gap-1"><Swords size={12} /> Status Pertarungan</p>
+                        <div className="grid grid-cols-2 gap-2 mb-2">
+                          <div className="bg-zinc-900/50 p-2 rounded">
+                            <p className="text-xs text-zinc-500">HP</p>
+                            <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                              <div className="h-full bg-red-500 rounded-full" style={{ width: `${combat.playerMaxHp > 0 ? (combat.playerHp / combat.playerMaxHp) * 100 : 0}%` }} />
+                            </div>
+                            <p className="text-xs text-zinc-300 text-right mt-0.5">{combat.playerHp} / {combat.playerMaxHp}</p>
+                          </div>
+                          <div className="bg-zinc-900/50 p-2 rounded">
+                            <p className="text-xs text-zinc-500">Mana</p>
+                            <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                              <div className="h-full bg-blue-500 rounded-full" style={{ width: `${combat.playerMaxMana > 0 ? (combat.playerMana / combat.playerMaxMana) * 100 : 0}%` }} />
+                            </div>
+                            <p className="text-xs text-zinc-300 text-right mt-0.5">{combat.playerMana} / {combat.playerMaxMana}</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-4 text-xs">
+                          <span className="text-zinc-400">Giliran: <span className="text-indigo-400 font-medium">{combat.turn === 'player' ? '⚔️ KAMU' : '👹 MUSUH'}</span></span>
+                          <span className="text-zinc-400">Ronde: {combat.turnCount}</span>
+                        </div>
+                      </div>
+
+                      {/* Combat Actions */}
+                      <div className="p-3 bg-zinc-800/50 border border-zinc-800 rounded-xl">
+                        <p className="text-xs font-medium text-zinc-400 mb-2 flex items-center gap-1"><Zap size={12} /> Aksi</p>
+                        <div className="flex gap-2 flex-wrap">
+                          <button onClick={() => combatAction('attack')} disabled={isLoading || combat.turn !== 'player'}
+                            className="flex-1 min-w-[80px] px-3 py-2 bg-red-900/30 hover:bg-red-900/50 border border-red-800/50 rounded-lg text-xs text-red-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                            <Swords size={12} className="mx-auto mb-0.5" /> Serang
+                          </button>
+                          {player.skills && player.skills.length > 0 && (
+                            <button onClick={() => combatAction('skill')} disabled={isLoading || combat.turn !== 'player'}
+                              className="flex-1 min-w-[80px] px-3 py-2 bg-purple-900/30 hover:bg-purple-900/50 border border-purple-800/50 rounded-lg text-xs text-purple-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                              <Sparkles size={12} className="mx-auto mb-0.5" /> Skill
+                            </button>
+                          )}
+                          {player.inventory?.some(i => i.healAmount || (i.spellType && i.attack)) && (
+                            <button onClick={() => combatAction('item')} disabled={isLoading || combat.turn !== 'player'}
+                              className="flex-1 min-w-[80px] px-3 py-2 bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800/50 rounded-lg text-xs text-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                              <FlaskConical size={12} className="mx-auto mb-0.5" /> Item
+                            </button>
+                          )}
+                          <button onClick={() => combatAction('flee')} disabled={isLoading || combat.turn !== 'player'}
+                            className="flex-1 min-w-[80px] px-3 py-2 bg-amber-900/30 hover:bg-amber-900/50 border border-amber-800/50 rounded-lg text-xs text-amber-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                            <Flag size={12} className="mx-auto mb-0.5" /> Lari
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Combat Log */}
+                      <div className="max-h-64 overflow-y-auto p-3 bg-zinc-900/50 border border-zinc-800 rounded-xl">
+                        <p className="text-xs font-medium text-zinc-400 mb-2 flex items-center gap-1"><Scroll size={12} /> Log Pertarungan</p>
+                        <div className="space-y-1">
+                          {combat.combatLog.slice(-20).map((entry: CombatLogEntry) => (
+                            <div key={entry.id} className={`text-xs leading-relaxed ${entry.type === 'player_attack' || entry.type === 'player_skill' || entry.type === 'player_crit' ? 'text-zinc-200' : entry.type === 'enemy_attack' || entry.type === 'enemy_skill' || entry.type === 'enemy_crit' ? 'text-red-300' : entry.type === 'player_heal' || entry.type === 'enemy_heal' ? 'text-emerald-300' : entry.type === 'victory' ? 'text-emerald-400 font-medium' : entry.type === 'defeat' ? 'text-red-400 font-medium' : entry.type === 'flee' ? 'text-amber-400' : 'text-zinc-500'}`}>
+                              {entry.message}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-zinc-500">
+                      <Swords size={32} className="mx-auto text-zinc-700 mb-2" />
+                      <p className="text-sm">Tidak dalam pertarungan</p>
+                      <p className="text-xs mt-1">Gunakan aksi "Bertarung" atau ketik aksi pertarungan untuk memulai</p>
+                      <button onClick={handleQuickCombat} disabled={isLoading}
+                        className="mt-3 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-xs text-zinc-300 transition-all">
+                        <Swords size={12} className="inline mr-1" /> Cari Pertarungan
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
       </div>
+
+      {/* COMBAT OVERLAY - Full screen combat modal when in combat */}
+      {combat?.inCombat && combat.enemy && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="relative w-full max-w-lg max-h-[90vh] bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-2xl shadow-red-900/20 animate-in zoom-in duration-200">
+            {/* Combat Header */}
+            <div className="relative px-6 py-4 text-center border-b border-zinc-800 bg-gradient-to-b from-red-950/30 to-transparent">
+              <div className="flex items-center justify-center mb-2">
+                <span className="text-3xl">{combat.enemy.isBoss ? '👑' : '⚔️'}</span>
+              </div>
+              <h2 className="text-xl font-bold text-zinc-100">PERTARUNGAN</h2>
+              <p className="text-zinc-500 text-sm mt-1">{combat.enemy.name} (Lv.{combat.enemy.level})</p>
+              <div className="flex items-center justify-center gap-4 mt-3 text-xs text-zinc-500">
+                <span>Giliran: <span className="text-indigo-400 font-medium">{combat.turn === 'player' ? '⚔️ KAMU' : '👹 MUSUH'}</span></span>
+                <span>Ronde: {combat.turnCount}</span>
+              </div>
+            </div>
+
+            <div className="overflow-y-auto max-h-[calc(90vh-200px)] p-6 space-y-4">
+              {/* Enemy HP */}
+              <div className="p-4 bg-red-950/20 border border-red-900/30 rounded-xl">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-red-300">{combat.enemy.name}</span>
+                  <span className="text-xs text-zinc-500">HP: {combat.enemyHp} / {combat.enemyMaxHp}</span>
+                </div>
+                <div className="h-3 bg-zinc-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-red-500 rounded-full transition-all duration-300" style={{ width: `${combat.enemyMaxHp > 0 ? (combat.enemyHp / combat.enemyMaxHp) * 100 : 0}%` }} />
+                </div>
+                <div className="flex justify-between text-[10px] text-zinc-500 mt-1">
+                  <span>ATK: {combat.enemy.attack}</span>
+                  <span>DEF: {combat.enemy.defense}</span>
+                  <span>SPD: {combat.enemy.speed}</span>
+                </div>
+              </div>
+
+              {/* Player HP/Mana */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-4 bg-zinc-800/50 border border-zinc-800 rounded-xl">
+                  <p className="text-xs text-zinc-500 mb-1">❤️ HP</p>
+                  <div className="h-2 bg-zinc-800 rounded-full overflow-hidden mb-1">
+                    <div className="h-full bg-red-500 rounded-full" style={{ width: `${combat.playerMaxHp > 0 ? (combat.playerHp / combat.playerMaxHp) * 100 : 0}%` }} />
+                  </div>
+                  <p className="text-xs text-zinc-300 text-right">{combat.playerHp} / {combat.playerMaxHp}</p>
+                </div>
+                <div className="p-4 bg-zinc-800/50 border border-zinc-800 rounded-xl">
+                  <p className="text-xs text-zinc-500 mb-1">💙 Mana</p>
+                  <div className="h-2 bg-zinc-800 rounded-full overflow-hidden mb-1">
+                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${combat.playerMaxMana > 0 ? (combat.playerMana / combat.playerMaxMana) * 100 : 0}%` }} />
+                  </div>
+                  <p className="text-xs text-zinc-300 text-right">{combat.playerMana} / {combat.playerMaxMana}</p>
+                </div>
+              </div>
+
+              {/* Combat Actions */}
+              <div className="p-4 bg-zinc-800/50 border border-zinc-800 rounded-xl">
+                <p className="text-xs font-medium text-zinc-400 mb-3 flex items-center gap-1"><Zap size={12} /> Pilih Aksi</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => combatAction('attack')} disabled={isLoading || combat.turn !== 'player'}
+                    className="px-4 py-3 bg-red-900/30 hover:bg-red-900/50 border border-red-800/50 rounded-lg text-sm text-red-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex flex-col items-center gap-1">
+                    <Swords size={18} /> Serang
+                  </button>
+                  {player.skills && player.skills.length > 0 && (
+                    <button onClick={() => combatAction('skill')} disabled={isLoading || combat.turn !== 'player'}
+                      className="px-4 py-3 bg-purple-900/30 hover:bg-purple-900/50 border border-purple-800/50 rounded-lg text-sm text-purple-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex flex-col items-center gap-1">
+                      <Sparkles size={18} /> Skill
+                    </button>
+                  )}
+                  {player.inventory?.some(i => i.healAmount || (i.spellType && i.attack)) && (
+                    <button onClick={() => combatAction('item')} disabled={isLoading || combat.turn !== 'player'}
+                      className="px-4 py-3 bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800/50 rounded-lg text-sm text-emerald-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex flex-col items-center gap-1">
+                      <FlaskConical size={18} /> Item
+                    </button>
+                  )}
+                  <button onClick={() => combatAction('flee')} disabled={isLoading || combat.turn !== 'player'}
+                    className="px-4 py-3 bg-amber-900/30 hover:bg-amber-900/50 border border-amber-800/50 rounded-lg text-sm text-amber-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex flex-col items-center gap-1">
+                    <Flag size={18} /> Lari
+                  </button>
+                </div>
+              </div>
+
+              {/* Combat Log */}
+              <div className="max-h-48 overflow-y-auto p-3 bg-zinc-900/50 border border-zinc-800 rounded-xl">
+                <p className="text-xs font-medium text-zinc-400 mb-2 flex items-center gap-1"><Scroll size={12} /> Log Pertarungan</p>
+                <div className="space-y-1">
+                  {combat.combatLog.slice(-15).map((entry: CombatLogEntry) => (
+                    <div key={entry.id} className={`text-xs leading-relaxed ${entry.type === 'player_attack' || entry.type === 'player_skill' || entry.type === 'player_crit' ? 'text-zinc-200' : entry.type === 'enemy_attack' || entry.type === 'enemy_skill' || entry.type === 'enemy_crit' ? 'text-red-300' : entry.type === 'player_heal' || entry.type === 'enemy_heal' ? 'text-emerald-300' : entry.type === 'victory' ? 'text-emerald-400 font-medium' : entry.type === 'defeat' ? 'text-red-400 font-medium' : entry.type === 'flee' ? 'text-amber-400' : 'text-zinc-500'}`}>
+                      {entry.message}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* TOAST */}
       {showToast && (
