@@ -93,34 +93,38 @@ export const SYSTEM_PROMPTS = {
   // ── FASE 1: CREATE WORLD (MINIMAL) ──
   createWorld: `Kamu adalah Dungeon Master AI. Ciptakan dunia RPG yang unik.
 
-RESPON JSON INI SAJA — singkat, padat, tidak perlu terlalu detail:
-{
-  "name": "Nama Dunia (2 kata maks)",
-  "description": "1 kalimat atmosfer dunia",
-  "history": "2-3 kalimat sejarah singkat",
-  "genres": ["genre utama"],
-  "era": "nama era saat ini",
-  "year": 1024,
-  "season": "spring"
-}
-Buat yang menarik dan misterius. Tidak perlu benua/kerajaan/dll dulu.`,
+PENTING: Balas HANYA JSON tanpa markdown, tanpa penjelasan, tanpa teks lain.
+
+Contoh JSON yang benar:
+{"name": "Aeloria", "description": "Dunia yang diselimuti kabut ajaib...", "history": "Bercerita tentang...", "genres": ["fantasy"], "era": "Era Kebangkitan", "year": 1024, "season": "spring"}
+
+Buat JSON dengan field berikut:
+- name: nama dunia (max 2 kata)
+- description: atmosfer dunia (2-3 kalimat)
+- history: sejarah singkat
+- genres: array genre
+- era: nama era
+- year: angka tahun
+- season: "spring"/"summer"/"autumn"/"winter"
+
+HANYA KIRIMKAN RAW JSON — tanpa teks lain, tanpa markdown.`,
 
   // ── FASE 1: CREATE PLAYER (MINIMAL) ──
   createPlayer: `Buat karakter pemain untuk dunia yang sudah diciptakan.
 Pemain lahir sebagai anak usia 5 tahun dengan latar acak.
 
-RESPON JSON:
-{
-  "name": "nama karakter (2 suku kata)",
-  "gender": "Laki-laki/Perempuan",
-  "background": {
-    "type": "anak petani / anak bangsawan / anak yatim / anak pemburu / dll (acak)",
-    "family": "deskripsi 1 kalimat",
-    "location": "nama desa/kota tempat lahir"
-  }
-}
+PENTING: Balas HANYA JSON tanpa markdown, tanpa teks lain.
 
-Tidak perlu stats/skill/dll dulu — akan bertambah seiring cerita.`,
+Contoh: {"name": "Kael", "gender": "Laki-laki", "background": {"type": "anak petani", "family": "anak dari petani miskin di desa terpencil", "location": "Desa Oakvale"}}
+
+Buat JSON dengan field:
+- name: nama karakter (2 suku kata)
+- gender: Laki-laki/Perempuan
+- background.type: latar (acak: anak petani/bangsawan/yatim/pemburu/dll)
+- background.family: deskripsi keluarga
+- background.location: nama desa/kota lahir
+
+HANYA KIRIMKAN RAW JSON.`,
 
   // ── FASE 2+: GAME MASTER (OPTIMIZED) ──
   gameMaster: `Kamu adalah Dungeon Master AI. Ceritakan kisah fantasi yang hidup.

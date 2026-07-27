@@ -24,10 +24,14 @@ interface GameContextType {
 const GameContext = createContext<GameContextType>(null!)
 
 function cleanJSON(text: string): string {
+  console.log('[cleanJSON] raw:', text.slice(0, 300))
   let t = text.replace(/```json\n?/gi, '').replace(/\n?```/g, '').trim()
   const first = t.indexOf('{')
   const last = t.lastIndexOf('}')
-  if (first === -1 || last === -1) throw new Error('AI tidak menghasilkan JSON valid')
+  if (first === -1 || last === -1) {
+    console.log('[cleanJSON] FULL response:', text)
+    throw new Error(`AI tidak menghasilkan JSON. Respon: ${text.slice(0, 300)}`)
+  }
   return t.slice(first, last + 1)
 }
 
