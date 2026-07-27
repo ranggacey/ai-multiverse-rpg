@@ -62,8 +62,23 @@ export async function callAI(
         else throw new Error(`Invalid JSON: ${text.slice(0, 200)}`)
       }
 
+      // Debug: log struktur response
+      console.log('[AI] response keys:', Object.keys(data))
+      if (data.choices?.[0]) {
+        console.log('[AI] choice[0] keys:', Object.keys(data.choices[0]))
+        console.log('[AI] message:', JSON.stringify(data.choices[0].message).slice(0, 300))
+      }
+
+      const content = data.choices?.[0]?.message?.content?.trim()
+      if (!content) {
+        // Coba cari di field lain
+        const altContent = data.choices?.[0]?.text || data.response || data.content || data.text || ''
+        console.log('[AI] alt content:', altContent.slice(0, 200))
+        throw new Error(`AI ngasih respon kosong. Struktur: ${JSON.stringify(data).slice(0, 300)}`)
+      }
+
       return {
-        content: data.choices?.[0]?.message?.content || '',
+        content,
         usage: data.usage ? {
           promptTokens: data.usage.prompt_tokens,
           completionTokens: data.usage.completion_tokens,
