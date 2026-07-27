@@ -15,6 +15,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 180000) // 3 menit timeout
+
     const res = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -27,7 +30,10 @@ export async function POST(request: NextRequest) {
         max_tokens: maxTokens || 4096,
         temperature: temperature ?? 0.8,
       }),
+      signal: controller.signal,
     })
+
+    clearTimeout(timeout)
 
     if (!res.ok) {
       const err = await res.text()
