@@ -1,11 +1,5 @@
-// AI API client for 9Router
-// Uses the provided API endpoint: https://rphvgzw.abc-tunnel.us/v1
-
-import type { Player, WorldSettings, WorldMemory } from './types'
-
-const API_BASE = process.env.NEXT_PUBLIC_AI_API_BASE || 'https://rphvgzw.abc-tunnel.us/v1'
-const API_KEY = process.env.NEXT_PUBLIC_AI_API_KEY || 'sk-placeholder'
-const AI_MODEL = process.env.NEXT_PUBLIC_AI_MODEL || 'oc/deepseek-v4-flash-free'
+// AI client — calls Next.js API Route (server-side) instead of 9Router directly
+// API Key aman di server, gak terekspos ke frontend
 
 export interface AIResponse {
   content: string
@@ -23,33 +17,23 @@ export async function callAI(
     model?: string
   }
 ): Promise<AIResponse> {
-  const res = await fetch(`${API_BASE}/chat/completions`, {
+  const res = await fetch('/api/chat', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${API_KEY}`,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: options?.model || AI_MODEL,
       messages,
-      max_tokens: options?.maxTokens || 4096,
+      model: options?.model,
+      maxTokens: options?.maxTokens || 4096,
       temperature: options?.temperature ?? 0.8,
     }),
   })
 
   if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`AI API error: ${res.status} - ${err}`)
+    const data = await res.json()
+    throw new Error(data.error || `HTTP ${res.status}`)
   }
 
-  const data = await res.json()
-  return {
-    content: data.choices?.[0]?.message?.content || '',
-    usage: data.usage ? {
-      promptTokens: data.usage.prompt_tokens,
-      completionTokens: data.usage.completion_tokens,
-    } : undefined,
-  }
+  return res.json()
 }
 
 // System prompts for different game phases
@@ -75,7 +59,7 @@ Buat respons dalam bahasa Indonesia. Gunakan format JSON:
 }
 
 Buat dunia yang benar-benar unik dengan lore mendalam. Gabungkan genre secara kreatif.`,
-  
+
   createPlayer: `Buat latar belakang karakter pemain untuk game RPG fantasi.
 Pemain memulai pada usia 5 tahun. Pilih latar belakang secara acak.
 
@@ -86,7 +70,7 @@ Gunakan format JSON:
   "background": {
     "type": "anak petani / anak bangsawan / anak yatim / dll",
     "family": "deskripsi keluarga",
-    "description": "deskripsi背景 karakter",
+    "description": "deskripsi latar karakter",
     "startingLocation": "lokasi awal",
     "traits": ["sifat1", "sifat2"],
     "secret": "rahasia yang bahkan tidak diketahui karakter"
@@ -134,25 +118,12 @@ Format respons JSON:
 }
 
 Jika ada timeskip, jalankan seluruh dunia selama periode itu. Kerajaan bisa runtuh, NPC bisa mati, perang bisa terjadi.`,
-
-  worldAdvance: `Kamu adalah Dungeon Master AI. Sejumlah waktu telah berlalu di dunia ini.
-Jalankan simulasi dunia selama periode waktu yang ditentukan.
-
-Berikan ringkasan tentang:
-1. Apa yang terjadi pada karakter pemain (jika ada training/aktivitas)
-2. Perubahan politik dan kekuasaan
-3. Nasib NPC-NPC penting
-4. Peristiwa dunia yang signifikan
-5. Perubahan kekuatan dan aliansi
-
-Gunakan bahasa seperti kronik sejarah.
-Respon dalam JSON dengan format yang sama seperti gameMaster.`
 }
 
 export function buildGamePrompt(
-  world: WorldSettings,
-  player: Player,
-  memory: WorldMemory,
+  world: any,
+  player: any,
+  memory: any,
   action: string,
   recentLog: string[]
 ): { role: string; content: string }[] {
