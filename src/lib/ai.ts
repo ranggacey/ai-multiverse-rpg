@@ -5,6 +5,7 @@ import type { Player, WorldSettings, WorldMemory } from './types'
 
 const API_BASE = process.env.NEXT_PUBLIC_AI_API_BASE || 'https://rphvgzw.abc-tunnel.us/v1'
 const API_KEY = process.env.NEXT_PUBLIC_AI_API_KEY || 'sk-placeholder'
+const AI_MODEL = process.env.NEXT_PUBLIC_AI_MODEL || 'deepseek/deepseek-v4'
 
 export interface AIResponse {
   content: string
@@ -29,7 +30,7 @@ export async function callAI(
       'Authorization': `Bearer ${API_KEY}`,
     },
     body: JSON.stringify({
-      model: options?.model || 'gpt-4o-mini',
+      model: options?.model || AI_MODEL,
       messages,
       max_tokens: options?.maxTokens || 4096,
       temperature: options?.temperature ?? 0.8,
