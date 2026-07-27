@@ -4,7 +4,8 @@ import { GameProvider, useGame } from '@/lib/game-provider'
 import { formatDate, formatTimePlayed } from '@/lib/game'
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, BookOpen, Sword, User, Map, Scroll, Eye, EyeOff, Download, Upload, Clock, Zap, Heart, Star, ChevronDown, ChevronUp } from 'lucide-react'
+import Biography from './biography'
+import { ArrowLeft, BookOpen, Sword, User, Map, Scroll, Eye, Download, Upload, Clock, Heart, Star, ChevronDown, ChevronUp, Plus, X, Menu, Trophy, Shield, Swords } from 'lucide-react'
 
 type GameTab = 'story' | 'stats' | 'inventory' | 'world' | 'log'
 
@@ -15,10 +16,34 @@ function GameUI() {
   const [typewriterDone, setTypewriterDone] = useState(true)
   const [showParallel, setShowParallel] = useState(false)
   const [showSidebar, setShowSidebar] = useState(true)
+  const [showBiography, setShowBiography] = useState(false)
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false)
+  const [savedToast, setSavedToast] = useState(false)
   const storyEndRef = useRef<HTMLDivElement>(null)
+  const storyContainerRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
 
-  useEffect(() => { storyEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [gameState?.storyLog])
+  useEffect(() => { storyEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [gameState?.storyLog, gameState?.storyLog?.length])
+
+  // Auto-scroll on new content
+  useEffect(() => {
+    if (storyContainerRef.current) {
+      const el = storyContainerRef.current
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 100) {
+        storyEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      }
+    }
+  }, [gameState?.storyLog?.length])
+
+  const showSavedToast = () => {
+    setSavedToast(true)
+    setTimeout(() => setSavedToast(false), 2000)
+  }
+
+  const handleSave = async () => {
+    await saveCurrentGame()
+    showSavedToast()
+  }
 
   if (!gameState) return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
@@ -82,8 +107,11 @@ function GameUI() {
           </div>
           <p className="text-xs text-zinc-500 hidden sm:block">{formatDate(world.currentDate)}</p>
           <div className="flex gap-1">
-            <button onClick={saveCurrentGame} className="p-1.5 text-zinc-400 hover:text-zinc-200 rounded" title="Save"><Download size={14} /></button>
+            <button onClick={handleSave} className="p-1.5 text-zinc-400 hover:text-zinc-200 rounded" title="Simpan"><Download size={14} /></button>
             <button onClick={exportSave} className="p-1.5 text-zinc-400 hover:text-zinc-200 rounded" title="Export"><Upload size={14} /></button>
+            <button onClick={() => setShowMobileSidebar(true)} className="p-1.5 text-zinc-400 hover:text-zinc-200 rounded md:hidden" title="Menu">
+              <Menu size={14} />
+            </button>
             <button onClick={() => setShowSidebar(!showSidebar)} className="p-1.5 text-zinc-400 hover:text-zinc-200 rounded hidden md:block" title="Toggle Sidebar">
               {showSidebar ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
             </button>
@@ -96,7 +124,7 @@ function GameUI() {
         {/* Story Area */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Story Log */}
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+          <div ref={storyContainerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
             {storyLog.map((log, i) => {
               const isLast = i === storyLog.length - 1
               const isParallel = log.type === 'parallel'
@@ -151,10 +179,17 @@ function GameUI() {
               <div className="mb-3 p-4 bg-red-950/30 border border-red-800/30 rounded-lg">
                 <p className="text-red-300 font-medium mb-1">☠️ {player.name} telah tiada</p>
                 <p className="text-sm text-zinc-400">{deathRecord.cause}</p>
-                <p className="text-xs text-zinc-500 mt-2">Usia {deathRecord.age} tahun · {formatDate(deathRecord.date)}</p>
-                <div className="mt-2 flex gap-2">
-                  <button onClick={() => router.push('/')} className="text-xs px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded">Kembali ke menu</button>
-                  <button onClick={exportSave} className="text-xs px-3 py-1.5 border border-zinc-700 hover:border-zinc-500 rounded">Simpan biografi</button>
+                <p className="text-xs text-zinc-500 mt-2">Usia {deathRecord.age} tahun · Bab {gameState.currentChapter} · {formatDate(deathRecord.date)}</p>
+                <div className="mt-2 flex gap-2 flex-wrap">
+                  <button onClick={() => setShowBiography(true)} className="text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 rounded">
+                    📜 Lihat Biografi
+                  </button>
+                  <button onClick={exportSave} className="text-xs px-3 py-1.5 border border-zinc-700 hover:border-zinc-500 rounded">
+                    💾 Simpan Biografi
+                  </button>
+                  <button onClick={() => router.push('/')} className="text-xs px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded">
+                    🏠 Kembali ke menu
+                  </button>
                 </div>
               </div>
             )}
@@ -328,6 +363,205 @@ function GameUI() {
           >
             <Eye size={14} /> Parallel Story
           </button>
+        </div>
+      )}
+
+      {/* Saved Toast */}
+      {savedToast && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="px-4 py-2 bg-emerald-900/80 border border-emerald-700/50 rounded-full text-xs text-emerald-300 shadow-lg">
+            ✓ Tersimpan
+          </div>
+        </div>
+      )}
+
+      {/* Biography Modal */}
+      {showBiography && deathRecord && (
+        <Biography 
+          gameState={gameState} 
+          onClose={() => setShowBiography(false)}
+          onExport={exportSave}
+          onReturn={() => router.push('/')}
+        />
+      )}
+
+      {/* Mobile Sidebar Drawer */}
+      {showMobileSidebar && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowMobileSidebar(false)} />
+          <div className="absolute right-0 top-0 bottom-0 w-80 max-w-[85vw] bg-zinc-900 border-l border-zinc-800 shadow-2xl animate-in slide-in-from-right duration-300 overflow-y-auto">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+              <span className="text-sm font-medium text-zinc-300">Menu</span>
+              <button onClick={() => setShowMobileSidebar(false)} className="text-zinc-500 hover:text-zinc-300">
+                <X size={18} />
+              </button>
+            </div>
+            {/* Tabs */}
+            <div className="flex border-b border-zinc-800">
+              {[
+                { key: 'stats' as GameTab, label: 'Status', icon: User },
+                { key: 'inventory' as GameTab, label: 'Item', icon: BookOpen },
+                { key: 'world' as GameTab, label: 'Dunia', icon: Map },
+                { key: 'log' as GameTab, label: 'Catatan', icon: Scroll },
+              ].map(tab => (
+                <button key={tab.key} onClick={() => { setActiveTab(tab.key) }}
+                  className={`flex-1 py-2 text-xs font-medium flex items-center justify-center gap-1 transition-colors ${activeTab === tab.key ? 'text-indigo-300 border-b-2 border-indigo-500' : 'text-zinc-500 hover:text-zinc-300'}`}
+                ><tab.icon size={12} /> {tab.label}</button>
+              ))}
+            </div>
+
+            <div className="p-4 space-y-4">
+              {/* Stats Tab */}
+              <div className={activeTab === 'stats' ? '' : 'hidden'}>
+                <div className="space-y-3">
+                  {statBars.filter(s => s.max > 0).map(bar => (
+                    <div key={bar.label}>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-zinc-400">{bar.label}</span>
+                        <span className="text-zinc-500">{bar.value}/{bar.max}</span>
+                      </div>
+                      <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-500 ${bar.color}`} style={{ width: `${Math.min(100, (bar.value / bar.max) * 100)}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                  
+                  <div className="grid grid-cols-2 gap-1.5 pt-2">
+                    {mainStats.map(stat => (
+                      <div key={stat.label} className="bg-zinc-800/50 rounded px-2 py-1.5 flex items-center justify-between">
+                        <span className="text-xs text-zinc-400">{stat.label}</span>
+                        <span className="text-xs font-medium text-zinc-200">{stat.value}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {player.skills.length > 0 && (
+                    <div className="pt-2">
+                      <p className="text-xs font-medium text-zinc-400 mb-2">Skill</p>
+                      <div className="space-y-1.5">
+                        {player.skills.slice(0, 8).map((skill, i) => (
+                          <div key={i} className="flex items-center justify-between">
+                            <span className="text-xs text-zinc-300">{skill.name}</span>
+                            <span className="text-xs text-indigo-400">Lv.{skill.level}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Quests in Stats */}
+                  {player.quests.filter(q => q.status === 'active').length > 0 && (
+                    <div className="pt-2 border-t border-zinc-800">
+                      <p className="text-xs font-medium text-amber-400 mb-2 flex items-center gap-1">
+                        <Trophy size={12} /> Quest Aktif
+                      </p>
+                      {player.quests.filter(q => q.status === 'active').map((q, i) => (
+                        <div key={q.id || i} className="mb-2">
+                          <div className="flex items-center justify-between text-xs mb-0.5">
+                            <span className="text-zinc-300 truncate">{q.title}</span>
+                            <span className={`text-zinc-500 ${
+                              q.difficulty === 'legendary' ? 'text-amber-400' :
+                              q.difficulty === 'hard' ? 'text-red-400' :
+                              q.difficulty === 'medium' ? 'text-yellow-400' : 'text-green-400'
+                            }`}>{q.difficulty}</span>
+                          </div>
+                          <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-amber-500 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, q.progress || 0)}%` }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="pt-2 flex items-center justify-between border-t border-zinc-800">
+                    <span className="text-xs text-amber-400">💰 {player.wealth}</span>
+                    <span className="text-xs text-zinc-500">Rep: {player.reputation}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Inventory Tab */}
+              <div className={activeTab === 'inventory' ? '' : 'hidden'}>
+                {player.inventory.length === 0 ? (
+                  <p className="text-xs text-zinc-600">Tidak ada item</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {player.inventory.map((item, i) => (
+                      <div key={item.id || i} className="flex items-center justify-between bg-zinc-800/30 rounded px-2 py-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs ${item.rarity === 'legendary' ? 'text-amber-400' : item.rarity === 'epic' ? 'text-purple-400' : item.rarity === 'rare' ? 'text-indigo-400' : 'text-zinc-300'}`}>
+                            {item.name}
+                          </span>
+                        </div>
+                        {item.equipped && <span className="text-xs text-emerald-400">◆</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {player.relationships.length > 0 && (
+                  <div className="pt-3">
+                    <p className="text-xs font-medium text-zinc-400 mb-2">Relasi</p>
+                    <div className="space-y-1.5">
+                      {player.relationships.slice(0, 5).map((rel, i) => (
+                        <div key={i} className="flex items-center justify-between text-xs">
+                          <span className="text-zinc-300">{rel.npcName}</span>
+                          <span className={`${rel.affinity > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {rel.affinity} · {rel.type}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* World Tab */}
+              <div className={activeTab === 'world' ? '' : 'hidden'}>
+                <p className="text-xs font-medium text-zinc-400 mb-2">{world?.name}</p>
+                <p className="text-xs text-zinc-500 leading-relaxed">{world?.description?.slice(0, 200)}</p>
+                
+                <div className="mt-3 space-y-2">
+                  <p className="text-xs text-zinc-400 font-medium">Sistem Kekuatan</p>
+                  {world?.powerSystems?.map((ps, i) => (
+                    <div key={i} className="text-xs text-zinc-500">
+                      • {ps.name} — {ps.description?.slice(0, 80)}
+                    </div>
+                  ))}
+                </div>
+
+                {gameState.worldEvents.filter(e => !e.resolved).length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs text-red-400 font-medium mb-1">Peristiwa Aktif</p>
+                    {gameState.worldEvents.filter(e => !e.resolved).slice(0, 3).map((ev, i) => (
+                      <div key={ev.id || i} className="text-xs text-zinc-400 mb-1">• {ev.title}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Log Tab */}
+              <div className={activeTab === 'log' ? '' : 'hidden'}>
+                <p className="text-xs text-zinc-500 leading-relaxed">
+                  Bab {gameState.currentChapter} · Waktu bermain: {formatTimePlayed(gameState.playTime)}
+                </p>
+                {parallelStories.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs font-medium text-indigo-400 mb-2 flex items-center gap-1">
+                      <Eye size={12} /> Cerita Paralel
+                    </p>
+                    <div className="space-y-2">
+                      {parallelStories.slice(-5).reverse().map((ps, i) => (
+                        <div key={ps.id || i} className="p-2 bg-zinc-800/30 rounded text-xs">
+                          <p className="text-indigo-300 font-medium mb-0.5">{ps.title}</p>
+                          <p className="text-zinc-500 line-clamp-2">{ps.content.slice(0, 100)}{ps.censored ? ' ███' : ''}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { GameProvider, useGame } from '@/lib/game-provider'
+import { formatTimePlayed } from '@/lib/game'
 import { useEffect, useState } from 'react'
 
 function MainMenu() {
@@ -109,6 +110,11 @@ function MainMenu() {
                     <p className="text-xs text-zinc-500 mt-0.5">
                       {save.worldName} · Usia {save.playerAge} · Bab {save.chapter}
                     </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] text-zinc-600">{formatTimePlayed(save.playTime)}</span>
+                      <span className="text-[10px] text-zinc-600">·</span>
+                      <span className="text-[10px] text-zinc-600">{new Date(save.updatedAt).toLocaleDateString('id-ID')}</span>
+                    </div>
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={() => continueGame(save.id)} className="px-3 py-1.5 bg-indigo-600/80 hover:bg-indigo-500 text-xs font-medium rounded transition-all">Main</button>
