@@ -1,8 +1,10 @@
 // AI client — langsung panggil 9Router dari browser
 // Progressive world building: minimal awal, nambah gradual
 
-// Pastiin ini default ke proxy VPS (harusnya dari env Vercel)
-const API_BASE = process.env.NEXT_PUBLIC_AI_API_BASE || 'https://rphvgzw.abc-tunnel.us/v1'
+// AI client — langsung ke OpenRouter
+// API_BASE akan otomatis kosong di Vercel, jadi pake default OpenRouter
+
+const API_BASE = process.env.NEXT_PUBLIC_AI_API_BASE || 'https://openrouter.ai/api/v1'
 const API_KEY = process.env.NEXT_PUBLIC_AI_API_KEY || ''
 
 export interface AIResponse {
