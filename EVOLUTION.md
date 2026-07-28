@@ -34,6 +34,7 @@ Generating static pages using 1 worker (8/8) in 811ms
 - Added automatic ambient sound switching based on world context
 - Enhanced combat system with skill slots and item usage
 - Implemented achievement tracking system
+- Added Companion, Codex, and Journal UI to sidebar — active companions show with HP bars and loyalty indicators (💕/💚/💔), collapsible sections for Codex entries and Journal notes
 
 ### Next Cycle Plan
 - Focus on improving AI prompt responses for more dynamic companion interactions

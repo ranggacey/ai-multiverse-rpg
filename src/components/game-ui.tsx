@@ -5,13 +5,20 @@ import { WEATHER_ICONS, TIME_ICONS } from '@/lib/types'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useGame } from '@/lib/game-provider'
 import Biography from '@/app/game/biography'
-import { Heart, Zap, Swords, Users, Scroll, Star, Package, Skull, Trophy, Clock, Sparkles, ChevronRight, Menu, X, Coins, Volume2, VolumeX, Music, Speaker } from 'lucide-react'
+import { Heart, Zap, Swords, Users, Scroll, Star, Package, Skull, Trophy, Clock, Sparkles, ChevronRight, Menu, X, Coins, Volume2, VolumeX, Music, Speaker, BookOpen } from 'lucide-react'
 import { getSettings, updateSettings, setAmbientTrack } from '@/lib/audio'
 import type { AudioSettings } from '@/lib/audio'
 
 interface GameUIProps {
   gameState: GameState
   error: string | null
+}
+
+// ── Companion icon ──
+const CompanionIcon = ({ loyalty }: { loyalty: number }) => {
+  if (loyalty >= 80) return <span className="text-pink-400">💕</span>
+  if (loyalty >= 50) return <span className="text-emerald-400">💚</span>
+  return <span className="text-zinc-500">💔</span>
 }
 
 // ── Story auto-scroll hook ──
@@ -311,6 +318,8 @@ export function GameUI({ gameState, error }: GameUIProps) {
   const [showInventory, setShowInventory] = useState(false)
   const [showSkills, setShowSkills] = useState(false)
   const [showQuests, setShowQuests] = useState(false)
+  const [showCodex, setShowCodex] = useState(false)
+  const [showJournal, setShowJournal] = useState(false)
 
   // Quick action cooldowns
   const [cooldowns, setCooldowns] = useState<Record<string, number>>({})
@@ -598,6 +607,10 @@ export function GameUI({ gameState, error }: GameUIProps) {
           setShowSkills={setShowSkills}
           showQuests={showQuests}
           setShowQuests={setShowQuests}
+          showCodex={showCodex}
+          setShowCodex={setShowCodex}
+          showJournal={showJournal}
+          setShowJournal={setShowJournal}
           weatherIcon={weatherIcon}
           timeIcon={timeIcon}
         />
@@ -624,6 +637,10 @@ export function GameUI({ gameState, error }: GameUIProps) {
               setShowSkills={setShowSkills}
               showQuests={showQuests}
               setShowQuests={setShowQuests}
+              showCodex={showCodex}
+              setShowCodex={setShowCodex}
+              showJournal={showJournal}
+              setShowJournal={setShowJournal}
               weatherIcon={weatherIcon}
               timeIcon={timeIcon}
             />
@@ -650,6 +667,10 @@ function SidebarContent({
   setShowSkills,
   showQuests,
   setShowQuests,
+  showCodex,
+  setShowCodex,
+  showJournal,
+  setShowJournal,
   weatherIcon,
   timeIcon,
 }: {
@@ -662,11 +683,17 @@ function SidebarContent({
   setShowSkills: (v: boolean) => void
   showQuests: boolean
   setShowQuests: (v: boolean) => void
+  showCodex: boolean
+  setShowCodex: (v: boolean) => void
+  showJournal: boolean
+  setShowJournal: (v: boolean) => void
   weatherIcon: string
   timeIcon: string
 }) {
-  const { player, world, npcs, quests, combat, currentChapter, playTime } = gameState
+  const { player, world, npcs, quests, combat, currentChapter, playTime, companions, party, codex, journal } = gameState
   const inCombat = combat?.inCombat
+  const activeCompanions = (companions || []).filter((c: any) => c.isActive)
+  const reserveCompanions = (companions || []).filter((c: any) => !c.isActive)
 
   const hpPct = player.maxHealth ? (player.health || 0) / player.maxHealth * 100 : 100
   const manaPct = player.maxMana ? (player.mana || 0) / player.maxMana * 100 : 0
@@ -848,6 +875,52 @@ function SidebarContent({
         )}
       </div>
 
+      {/* ── COMPANIONS ── */}
+      {((companions || []).length > 0) && (
+        <div>
+          <h4 className="flex items-center gap-1.5 text-xs font-medium text-zinc-300 mb-2">
+            <Users size={14} className="text-purple-400" /> Companion ({activeCompanions.length}/{party?.maxSize || 4})
+          </h4>
+          <div className="space-y-1.5">
+            {/* Active companions */}
+            {activeCompanions.map((comp: any, i: number) => (
+              <div key={comp.id || i} className="px-2 py-1.5 bg-purple-900/20 border border-purple-800/30 rounded text-xs">
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="text-zinc-200 font-medium flex items-center gap-1">
+                    {comp.name} <CompanionIcon loyalty={comp.loyalty} />
+                  </span>
+                  <span className="text-[9px] text-purple-400">Lv.{comp.level}</span>
+                </div>
+                <div className="flex gap-2 text-[9px] text-zinc-500">
+                  <span>{comp.class}</span>
+                  <span>•</span>
+                  <span>Loyalty: {comp.loyalty}</span>
+                </div>
+                {/* HP bar */}
+                <div className="mt-1">
+                  <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-red-500 to-red-400 rounded-full" style={{ width: `${(comp.hp / comp.maxHp) * 100}%` }} />
+                  </div>
+                </div>
+              </div>
+            ))}
+            {/* Reserve companions */}
+            {reserveCompanions.length > 0 && (
+              <>
+                <p className="text-[9px] text-zinc-600 mb-1">Cadangan:</p>
+                {reserveCompanions.map((comp: any, i: number) => (
+                  <div key={comp.id || i} className="flex items-center gap-2 px-2 py-1 bg-zinc-800/20 rounded text-xs opacity-60">
+                    <CompanionIcon loyalty={comp.loyalty} />
+                    <span className="text-zinc-400 flex-1 truncate">{comp.name}</span>
+                    <span className="text-[9px] text-zinc-600">Lv.{comp.level}</span>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── SKILLS ── */}
       <div>
         <button onClick={() => setShowSkills(!showSkills)} className="flex items-center gap-1.5 text-xs font-medium text-zinc-300 mb-2 w-full text-left">
@@ -868,6 +941,50 @@ function SidebarContent({
           </div>
         )}
       </div>
+
+      {/* ── CODEX ── */}
+      {(codex?.entries?.length || 0) > 0 && (
+        <div>
+          <button onClick={() => setShowCodex(!showCodex)} className="flex items-center gap-1.5 text-xs font-medium text-zinc-300 mb-2 w-full text-left">
+            <BookOpen size={14} className="text-indigo-400" /> Codex ({(codex?.discoveredCount || 0)}/{(codex?.totalCount || 0)})
+            <ChevronRight size={12} className={`ml-auto transition-transform ${showCodex ? 'rotate-90' : ''}`} />
+          </button>
+          {showCodex && (
+            <div className="space-y-1">
+              {codex?.entries?.filter((e: any) => e.isDiscovered).slice(0, 5).map((entry: any, i: number) => (
+                <div key={entry.id || i} className="flex items-center gap-2 px-2 py-1.5 bg-indigo-900/10 border border-indigo-800/20 rounded text-xs">
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    entry.rarity === 'legendary' ? 'bg-amber-400' :
+                    entry.rarity === 'epic' ? 'bg-purple-400' :
+                    entry.rarity === 'rare' ? 'bg-blue-400' : 'bg-zinc-500'
+                  }`} />
+                  <span className="text-zinc-300 flex-1 truncate">{entry.title}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── JOURNAL ── */}
+      {(journal?.entries?.length || 0) > 0 && (
+        <div>
+          <button onClick={() => setShowJournal(!showJournal)} className="flex items-center gap-1.5 text-xs font-medium text-zinc-300 mb-2 w-full text-left">
+            <Scroll size={14} className="text-emerald-400" /> Journal ({(journal?.entries?.length || 0)})
+            <ChevronRight size={12} className={`ml-auto transition-transform ${showJournal ? 'rotate-90' : ''}`} />
+          </button>
+          {showJournal && (
+            <div className="space-y-1">
+              {journal?.entries?.slice(0, 5).map((entry: any, i: number) => (
+                <div key={entry.id || i} className="px-2 py-1.5 bg-emerald-900/10 border border-emerald-800/20 rounded text-xs">
+                  <p className="text-zinc-300 truncate">{entry.title}</p>
+                  <p className="text-[9px] text-zinc-600 truncate">{entry.content?.slice(0, 50)}...</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
