@@ -179,6 +179,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         newState.world.timeOfDay = timeMatch[1].trim().toLowerCase() as any
       }
 
+      // Ekstrak chapter
+      const chpMatch = content.match(/CHP:\s*(\d+)/i)
+      if (chpMatch) {
+        newState.currentChapter = parseInt(chpMatch[1])
+      }
+
       const statMatch = content.match(/STAT:([^|]+)/i)
       if (statMatch) {
         const st = newState.player.stats || { str: 5, agi: 5, int: 5, cha: 5 }

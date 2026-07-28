@@ -450,14 +450,7 @@ export function GameUI({ gameState, error }: GameUIProps) {
 
       {/* ── BIOGRAPHY MODAL ── */}
       {showBiography && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="relative w-full max-w-3xl max-h-[90vh] bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-2xl">
-            <button onClick={() => setShowBiography(false)} className="absolute top-4 right-4 z-10 p-2 bg-zinc-800/80 hover:bg-zinc-700 rounded-full text-zinc-300 transition-colors">
-              <X size={16} />
-            </button>
-            <Biography gameState={gameState} onClose={() => setShowBiography(false)} onExport={() => {}} onReturn={() => window.location.reload()} />
-          </div>
-        </div>
+        <Biography gameState={gameState} onClose={() => setShowBiography(false)} onExport={() => {}} onReturn={() => window.location.reload()} />
       )}
     </div>
   )

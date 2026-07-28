@@ -2,7 +2,60 @@
 
 import { GameProvider, useGame } from '@/lib/game-provider'
 import { formatTimePlayed } from '@/lib/game'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
+
+// Animated starfield background
+function Starfield() {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    let animId: number
+    const stars: { x: number; y: number; r: number; a: number; da: number }[] = []
+
+    const resize = () => {
+      canvas.width = window.innerWidth
+      canvas.height = window.innerHeight
+    }
+    resize()
+    window.addEventListener('resize', resize)
+
+    for (let i = 0; i < 120; i++) {
+      stars.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        r: Math.random() * 1.5 + 0.3,
+        a: Math.random(),
+        da: (Math.random() - 0.5) * 0.008,
+      })
+    }
+
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      stars.forEach(s => {
+        s.a += s.da
+        if (s.a > 1 || s.a < 0.1) s.da = -s.da
+        ctx.beginPath()
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(255, 255, 255, ${s.a})`
+        ctx.fill()
+      })
+      animId = requestAnimationFrame(draw)
+    }
+    draw()
+
+    return () => {
+      cancelAnimationFrame(animId)
+      window.removeEventListener('resize', resize)
+    }
+  }, [])
+
+  return <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-0" />
+}
 
 function MainMenu() {
   const { newGame, isLoading, error, saves, refreshSaves, continueGame, deleteSaveGame, exportSave, importSave } = useGame()
@@ -40,6 +93,9 @@ function MainMenu() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
+      {/* Animated Starfield */}
+      <Starfield />
+      
       {/* Background Ambiance */}
       <div className="fixed inset-0 bg-gradient-to-b from-zinc-950 via-indigo-950/20 to-zinc-950 pointer-events-none" />
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/10 via-transparent to-transparent pointer-events-none" />
@@ -117,7 +173,7 @@ function MainMenu() {
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={() => continueGame(save.id)} className="px-3 py-1.5 bg-indigo-600/80 hover:bg-indigo-500 text-xs font-medium rounded transition-all">Main</button>
-                    <button onClick={() => exportSave()} className="px-3 py-1.5 border border-zinc-700 hover:border-zinc-500 text-xs rounded transition-all">Export</button>
+                    <button onClick={() => { const a = document.createElement('a'); a.href = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(save, null, 2))}`; a.download = `ai-multiverse-${save.playerName}-${Date.now()}.json`; a.click(); }} className="px-3 py-1.5 border border-zinc-700 hover:border-zinc-500 text-xs rounded transition-all">Export</button>
                     <button onClick={() => deleteSaveGame(save.id)} className="px-3 py-1.5 bg-red-900/50 hover:bg-red-800/70 text-xs rounded transition-all">Hapus</button>
                   </div>
                 </div>

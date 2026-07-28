@@ -130,7 +130,8 @@ STAT:str:[angka],agi:[angka],int:[angka],cha:[angka] — saat stats berubah
 NPC: [nama] | [teman/musuh/netral] | [deskripsi singkat] — saat bertemu NPC baru
 QUEST: [nama quest] | [deskripsi] | [main/side/personal] — saat mulai quest baru
 QUEST_PROGRESS: [nama quest] | [progress] | [max] — saat quest progress maju
-QUEST_SELESAI: [nama quest] — saat quest selesai
+|QUEST_SELESAI: [nama quest] — saat quest selesai
+|CHP: [angka bab baru] — saat chapter baru dimulai (misal: CHP: 3)
 
 Contoh label di tengah narasi:
 "...Kael berjalan menyusuri jalan setapak. CUACA: hujan WAKTU: malam USIA: 10 LOKASI: Desa Oakvale STAT:str:6,agi:5,int:5,cha:5 NPC: Sersan Varian | netral | Seorang veteran perang berjanggut tebal QUEST: Berburu Serigala | Bunuh 3 serigala di hutan utara | side QUEST_PROGRESS: Berburu Serigala | 1 | 3"
