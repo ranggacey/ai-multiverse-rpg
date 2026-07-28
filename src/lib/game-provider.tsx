@@ -6,6 +6,7 @@ import { createInitialState, calculatePlayerMaxHp, calculatePlayerMaxMana, calcu
 import { callAI, buildGamePrompt } from '@/lib/ai'
 import { saveGame, loadGame, listSaves, deleteSave, type SaveMeta } from '@/lib/storage'
 import { initAudio, autoSwitchAmbient, playLevelUpSFX, playDamageSFX, playHealSFX, playQuestSFX, playCombatStartSFX, playCombatEndSFX, playCoinSFX, playMagicSFX, playClickSFX, playNotificationSFX } from '@/lib/audio'
+import type { Achievement } from '@/lib/types'
 
 interface GameContextType {
   gameState: GameState | null
@@ -301,6 +302,25 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       newState.updatedAt = Date.now()
       newState.playTime += 1000
 
+      // Check achievements
+      const newAchievements = checkAchievements(newState)
+      if (newAchievements.length > (newState.achievements?.length || 0)) {
+        const unlockedNow = newAchievements.slice(newState.achievements?.length || 0)
+        newState.achievements = newAchievements
+        // Notify for each new achievement
+        unlockedNow.forEach(ach => {
+          newState.storyLog.push({
+            id: crypto.randomUUID(),
+            date: { ...(newState.currentDate || { year: 1024, month: 1, day: 1 }) },
+            playerAge: newState.player.age,
+            content: `🏆 Achievement: ${ach.icon} ${ach.name} — ${ach.description}`,
+            type: 'system',
+            location: newState.player.location,
+          })
+        })
+        playLevelUpSFX()
+      }
+
       // Track last action for save slot metadata
       newState.saveSlot = {
         slotIndex: -1,
@@ -589,6 +609,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       player.mana = player.maxMana
 
       const newState = { ...state, combat: { ...combat, inCombat: false, enemy: undefined }, player }
+      
+      // Check achievements after combat victory
+      newState.achievements = checkAchievements(newState)
+      
       setGameState(newState)
       await saveGame(newState.id, newState)
 
@@ -706,6 +730,39 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     playCombatEndSFX(victory)
     autoSwitchAmbient(newState.world, { inCombat: false })
   }, [])
+
+  // ── Achievement checking ──
+  function checkAchievements(state: GameState): Achievement[] {
+    const current = state.achievements || []
+    const unlocked = new Set(current.map(a => a.id))
+    const newOnes: Achievement[] = []
+    const now = Date.now()
+
+    const addIf = (id: string, name: string, desc: string, icon: string, condition: string, check: boolean) => {
+      if (!unlocked.has(id) && check) {
+        newOnes.push({ id, name, description: desc, icon, unlockedAt: now, condition })
+        unlocked.add(id)
+      }
+    }
+
+    addIf('first_step', 'Langkah Pertama', 'Mulai petualangan pertama', '🚶', 'Mulai permainan', true)
+    addIf('first_blood', 'Pertumpahan Darah', 'Menang dalam pertarungan pertama', '⚔️', 'Menang bertarung', state.combat?.inCombat === false && state.storyLog.some(l => l.type === 'battle'))
+    addIf('chapter_3', 'Jelajah Dunia', 'Mencapai Bab 3', '🌍', 'Capai Bab 3', state.currentChapter >= 3)
+    addIf('chapter_5', 'Petualang Ulung', 'Mencapai Bab 5', '🌟', 'Capai Bab 5', state.currentChapter >= 5)
+    addIf('level_5', 'Semakin Kuat', 'Mencapai Level 5', '💪', 'Capai Level 5', (state.player.level || 0) >= 5)
+    addIf('level_10', 'Legenda Pemula', 'Mencapai Level 10', '🔥', 'Capai Level 10', (state.player.level || 0) >= 10)
+    addIf('wealth_100', 'Kantong Penuh', 'Mengumpulkan 100 koin', '💰', 'Dapat 100 koin', (state.player.wealth || 0) >= 100)
+    addIf('wealth_500', 'Kaya Raya', 'Mengumpulkan 500 koin', '💎', 'Dapat 500 koin', (state.player.wealth || 0) >= 500)
+    addIf('quest_3', 'Pengembara Misi', 'Menyelesaikan 3 quest', '📜', 'Selesaikan 3 quest', (state.quests || []).filter(q => q.status === 'completed').length >= 3)
+    addIf('npc_5', 'Sosialita', 'Bertemu 5 NPC berbeda', '👥', 'Temui 5 NPC', (state.npcs || []).length >= 5)
+    addIf('item_10', 'Kolektor', 'Mengoleksi 10 item', '🎒', 'Kumpulkan 10 item', (state.player.inventory || []).length >= 10)
+    addIf('skill_5', 'Terpelajar', 'Mempelajari 5 skill', '📚', 'Pelajari 5 skill', (state.player.skills || []).length >= 5)
+    addIf('death_first', 'Ajal Pertama', 'Mengalami kematian karakter', '💀', 'Karakter mati', !state.isAlive && state.deathRecord !== undefined)
+    addIf('stories_50', 'Penulis Produktif', 'Menulis 50 catatan sejarah', '✍️', '50 story log', state.storyLog.length >= 50)
+    addIf('stories_100', 'Sage Agung', 'Menulis 100 catatan sejarah', '📖', '100 story log', state.storyLog.length >= 100)
+
+    return [...current, ...newOnes]
+  }
 
   return (
     <GameContext.Provider value={{

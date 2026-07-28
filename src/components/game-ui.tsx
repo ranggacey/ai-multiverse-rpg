@@ -5,7 +5,9 @@ import { WEATHER_ICONS, TIME_ICONS } from '@/lib/types'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useGame } from '@/lib/game-provider'
 import Biography from '@/app/game/biography'
-import { Heart, Zap, Swords, Users, Scroll, Star, Package, Skull, Trophy, Clock, Sparkles, ChevronRight, Menu, X, Coins } from 'lucide-react'
+import { Heart, Zap, Swords, Users, Scroll, Star, Package, Skull, Trophy, Clock, Sparkles, ChevronRight, Menu, X, Coins, Volume2, VolumeX, Music, Speaker } from 'lucide-react'
+import { getSettings, updateSettings, setAmbientTrack } from '@/lib/audio'
+import type { AudioSettings } from '@/lib/audio'
 
 interface GameUIProps {
   gameState: GameState
@@ -52,6 +54,139 @@ function WorldEventToast({ message, onDone }: { message: string; onDone: () => v
     <div className="world-event-toast fixed top-4 right-4 z-50 px-4 py-3 bg-indigo-900/80 border border-indigo-500/30 rounded-lg backdrop-blur-md shadow-lg shadow-indigo-900/30 max-w-sm">
       <p className="text-xs text-indigo-200 font-medium mb-0.5">🌍 Peristiwa Dunia</p>
       <p className="text-sm text-zinc-100">{message}</p>
+    </div>
+  )
+}
+
+// ── Audio Settings Button + Panel ──
+function AudioSettingsButton() {
+  const [open, setOpen] = useState(false)
+  const [settings, setSettings] = useState<AudioSettings>(getSettings())
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  // Close on click outside
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const update = (partial: Partial<AudioSettings>) => {
+    const s = updateSettings(partial)
+    setSettings(s)
+  }
+
+  const trackOptions: { value: string; label: string }[] = [
+    { value: 'peaceful', label: '🌿 Damai' },
+    { value: 'mysterious', label: '🌫️ Misterius' },
+    { value: 'tense', label: '⚡ Tegang' },
+    { value: 'combat', label: '⚔️ Bertarung' },
+    { value: 'town', label: '🏘️ Kota' },
+    { value: 'dungeon', label: '🏚️ Gua' },
+    { value: 'night', label: '🌙 Malam' },
+    { value: 'storm', label: '⛈️ Badai' },
+  ]
+
+  return (
+    <div className="relative" ref={panelRef}>
+      <button
+        onClick={() => setOpen(!open)}
+        className={`p-1.5 rounded-lg transition-colors ${
+          settings.muted ? 'text-red-400 hover:text-red-300' : 'text-zinc-500 hover:text-zinc-200'
+        }`}
+        title="Pengaturan Audio"
+      >
+        {settings.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-56 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl shadow-black/40 p-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+          <p className="text-xs font-medium text-zinc-300 mb-3">🎵 Pengaturan Audio</p>
+
+          {/* Master Volume */}
+          <div className="mb-2">
+            <div className="flex justify-between text-[10px] text-zinc-500 mb-0.5">
+              <span>Volume</span>
+              <span>{Math.round(settings.masterVolume * 100)}%</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={settings.muted ? 0 : settings.masterVolume}
+              onChange={e => update({ masterVolume: parseFloat(e.target.value), muted: false })}
+              className="w-full h-1 appearance-none bg-zinc-700 rounded-full accent-indigo-500 cursor-pointer"
+            />
+          </div>
+
+          {/* Mute */}
+          <button
+            onClick={() => update({ muted: !settings.muted })}
+            className={`w-full text-xs px-2 py-1.5 rounded-lg mb-2 transition-colors ${
+              settings.muted
+                ? 'bg-red-900/30 text-red-300 border border-red-800/30'
+                : 'bg-zinc-800/50 text-zinc-400 border border-zinc-800 hover:border-zinc-700'
+            }`}
+          >
+            {settings.muted ? '🔇 Matikan Mute' : '🔊 Mute'}
+          </button>
+
+          {/* Separate volumes */}
+          <div className="space-y-1.5 mb-2">
+            <div className="flex items-center gap-2">
+              <Music size={12} className="text-indigo-400 shrink-0" />
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={settings.ambientVolume}
+                onChange={e => update({ ambientVolume: parseFloat(e.target.value) })}
+                className="flex-1 h-1 appearance-none bg-zinc-700 rounded-full accent-indigo-500 cursor-pointer"
+              />
+              <span className="text-[9px] text-zinc-500 w-7 text-right">{Math.round(settings.ambientVolume * 100)}%</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Speaker size={12} className="text-emerald-400 shrink-0" />
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={settings.sfxVolume}
+                onChange={e => update({ sfxVolume: parseFloat(e.target.value) })}
+                className="flex-1 h-1 appearance-none bg-zinc-700 rounded-full accent-indigo-500 cursor-pointer"
+              />
+              <span className="text-[9px] text-zinc-500 w-7 text-right">{Math.round(settings.sfxVolume * 100)}%</span>
+            </div>
+          </div>
+
+          {/* Ambient Track Select */}
+          <div className="border-t border-zinc-800 pt-2">
+            <p className="text-[10px] text-zinc-500 mb-1.5">🎼 Suasana</p>
+            <div className="grid grid-cols-2 gap-1">
+              {trackOptions.map(t => (
+                <button
+                  key={t.value}
+                  onClick={() => setAmbientTrack(t.value as any)}
+                  className={`text-[10px] px-1.5 py-1 rounded transition-colors text-left ${
+                    settings.currentAmbientTrack === t.value
+                      ? 'bg-indigo-600/30 text-indigo-200 border border-indigo-600/30'
+                      : 'bg-zinc-800/30 text-zinc-500 hover:text-zinc-300 border border-transparent'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -278,6 +413,8 @@ export function GameUI({ gameState, error }: GameUIProps) {
                 {player.location}
               </span>
             )}
+            {/* Audio Settings Toggle */}
+            <AudioSettingsButton />
           </div>
         </div>
 

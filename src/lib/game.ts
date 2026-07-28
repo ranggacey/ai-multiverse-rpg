@@ -32,6 +32,7 @@ export function createInitialState(): GameState {
     worldMemory: '',
     narrationBuffer: '',
     combat: initialCombat,
+    achievements: [],
   }
 }
 

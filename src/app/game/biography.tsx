@@ -31,7 +31,10 @@ export default function Biography({ gameState, onClose, onExport, onReturn }: Bi
   ).slice(-20)
 
   // Achievements based on gameplay
-  const achievements = deathRecord.achievements.length > 0 ? deathRecord.achievements : [
+  const gameAchievements = gameState.achievements || []
+  const achievements = gameAchievements.length > 0 
+    ? gameAchievements.map(a => `${a.icon} ${a.name} — ${a.description}`)
+    : deathRecord.achievements.length > 0 ? deathRecord.achievements : [
     ...(currentChapter >= 3 ? [`Bertahan hingga Bab ${currentChapter}`] : []),
     ...(storiesTold >= 20 ? ['Menulis lebih dari 20 catatan sejarah'] : []),
     ...(skillsLearned >= 3 ? [`Menguasai ${skillsLearned} skill`] : []),

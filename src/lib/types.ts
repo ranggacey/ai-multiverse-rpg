@@ -86,6 +86,15 @@ export interface DeathRecord {
   legacy: string
 }
 
+export interface Achievement {
+  id: string
+  name: string
+  description: string
+  icon: string
+  unlockedAt?: number
+  condition: string // description of how to unlock
+}
+
 export type Weather = 'cerah' | 'berawan' | 'hujan' | 'badai' | 'salju' | 'berkabut' | 'mendung' | 'angin_kencang'
 export type TimeOfDay = 'pagi' | 'siang' | 'sore' | 'malam' | 'dini_hari'
 
@@ -227,6 +236,9 @@ export interface GameState {
   // Context buat AI — ringkasan
   worldMemory?: string
   narrationBuffer?: string
+
+  // Achievements
+  achievements?: Achievement[]
 
   // Save slot metadata
   saveSlot?: SaveSlotMeta
