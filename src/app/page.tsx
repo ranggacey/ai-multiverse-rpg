@@ -173,8 +173,8 @@ function MainMenu() {
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={() => continueGame(save.id)} className="px-3 py-1.5 bg-indigo-600/80 hover:bg-indigo-500 text-xs font-medium rounded transition-all">Main</button>
-                    <button onClick={() => { const a = document.createElement('a'); a.href = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(save, null, 2))}`; a.download = `ai-multiverse-${save.playerName}-${Date.now()}.json`; a.click(); }} className="px-3 py-1.5 border border-zinc-700 hover:border-zinc-500 text-xs rounded transition-all">Export</button>
-                    <button onClick={() => deleteSaveGame(save.id)} className="px-3 py-1.5 bg-red-900/50 hover:bg-red-800/70 text-xs rounded transition-all">Hapus</button>
+                    <button onClick={async () => { try { const { loadGame } = await import('@/lib/storage'); const data = await loadGame(save.id); if (data) { const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `ai-multiverse-${save.playerName}-${Date.now()}.json`; a.click(); URL.revokeObjectURL(url); } } catch { alert('Gagal export'); } }} className="px-3 py-1.5 border border-zinc-700 hover:border-zinc-500 text-xs rounded transition-all">Export</button>
+                    <button onClick={() => { if (confirm('Hapus save ini?')) deleteSaveGame(save.id); }} className="px-3 py-1.5 bg-red-900/50 hover:bg-red-800/70 text-xs rounded transition-all">Hapus</button>
                   </div>
                 </div>
               ))}

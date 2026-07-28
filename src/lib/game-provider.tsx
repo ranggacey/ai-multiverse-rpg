@@ -240,6 +240,31 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      // Detect SKILL
+      const skillMatch = content.match(/SKILL:\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*(\d+)\s*\|\s*([^\n]+)/i)
+      if (skillMatch) {
+        const skillName = skillMatch[1].trim()
+        const skillType = skillMatch[2].trim()
+        const skillLevel = parseInt(skillMatch[3]) || 1
+        const skillDesc = skillMatch[4].trim()
+        if (!newState.player.skills) newState.player.skills = []
+        if (!newState.player.skills.find((s: any) => s.name === skillName)) {
+          newState.player.skills = [...newState.player.skills, {
+            id: crypto.randomUUID(),
+            name: skillName,
+            level: skillLevel,
+            type: skillType,
+            description: skillDesc,
+            maxLevel: 10,
+          }]
+        } else {
+          // Update level if already known
+          newState.player.skills = newState.player.skills.map((s: any) =>
+            s.name === skillName ? { ...s, level: Math.max(s.level, skillLevel) } : s
+          )
+        }
+      }
+
       // Detect QUEST start
       const questMatch = content.match(/QUEST:\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*(\S+)/i)
       if (questMatch) {

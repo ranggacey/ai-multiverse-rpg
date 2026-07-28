@@ -192,7 +192,7 @@ function AudioSettingsButton() {
 }
 
 // ── Combat UI ──
-function CombatPanel({ combat, enemy }: { combat: CombatState; enemy: CombatEnemy }) {
+function CombatPanel({ combat, enemy, playerSkills, playerInventory }: { combat: CombatState; enemy: CombatEnemy; playerSkills: Skill[]; playerInventory: Item[] }) {
   const { combatAction } = useGame()
 
   const enemyHpPct = (combat.enemyHp / combat.enemyMaxHp) * 100
@@ -256,13 +256,43 @@ function CombatPanel({ combat, enemy }: { combat: CombatState; enemy: CombatEnem
 
       {/* Actions */}
       {combat.turn === 'player' ? (
-        <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => combatAction('attack')} className="px-3 py-2 bg-red-600/40 hover:bg-red-600/60 border border-red-600/30 rounded text-xs text-red-200 font-medium transition-all active:scale-95">
-            ⚔️ Serang
-          </button>
-          <button onClick={() => combatAction('flee')} className="px-3 py-2 bg-zinc-700/40 hover:bg-zinc-700/60 border border-zinc-600/30 rounded text-xs text-zinc-300 transition-all active:scale-95">
-            🏃 Kabur
-          </button>
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => combatAction('attack')} className="px-3 py-2 bg-red-600/40 hover:bg-red-600/60 border border-red-600/30 rounded text-xs text-red-200 font-medium transition-all active:scale-95">
+              ⚔️ Serang
+            </button>
+            <button onClick={() => combatAction('flee')} className="px-3 py-2 bg-zinc-700/40 hover:bg-zinc-700/60 border border-zinc-600/30 rounded text-xs text-zinc-300 transition-all active:scale-95">
+              🏃 Kabur
+            </button>
+          </div>
+          {/* Skills */}
+          {(() => {
+            const combatSkills = playerSkills.filter(s => s.type === 'combat' || s.type === 'magic')
+            if (combatSkills.length === 0) return null
+            return (
+              <div className="grid grid-cols-2 gap-1">
+                {combatSkills.slice(0, 4).map((s: any) => (
+                  <button key={s.id || s.name} onClick={() => combatAction('skill', s.id)} className="px-2 py-1.5 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-600/30 rounded text-[10px] text-purple-200 transition-all active:scale-95 truncate">
+                    ✨ {s.name}
+                  </button>
+                ))}
+              </div>
+            )
+          })()}
+          {/* Items */}
+          {(() => {
+            const usable = playerInventory.filter((i: any) => i.healAmount || i.spellType)
+            if (usable.length === 0) return null
+            return (
+              <div className="grid grid-cols-2 gap-1">
+                {usable.slice(0, 4).map((item: any) => (
+                  <button key={item.id} onClick={() => combatAction('item', item.id)} className="px-2 py-1.5 bg-green-600/30 hover:bg-green-600/50 border border-green-600/30 rounded text-[10px] text-green-200 transition-all active:scale-95 truncate">
+                    🧪 {item.name}
+                  </button>
+                ))}
+              </div>
+            )
+          })()}
         </div>
       ) : (
         <p className="text-center text-xs text-zinc-500 animate-pulse">Musuh sedang bergerak...</p>
@@ -404,6 +434,8 @@ export function GameUI({ gameState, error }: GameUIProps) {
               <span className="capitalize">{w?.weather || 'cerah'}</span>
               <span className="text-zinc-700">·</span>
               <span className="capitalize">{w?.timeOfDay || 'pagi'}</span>
+              <span className="text-zinc-700">·</span>
+              <span className="capitalize">{w?.season || ''}</span>
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -439,7 +471,7 @@ export function GameUI({ gameState, error }: GameUIProps) {
                 <span className="text-sm font-semibold text-red-300">⚔️ Pertarungan!</span>
                 <span className="text-xs text-zinc-500">Giliran ke-{combat.turnCount + 1}</span>
               </div>
-              <CombatPanel combat={combat} enemy={combat.enemy} />
+              <CombatPanel combat={combat} enemy={combat.enemy} playerSkills={gameState.player.skills || []} playerInventory={gameState.player.inventory || []} />
             </div>
           ) : null}
 
@@ -641,10 +673,16 @@ function SidebarContent({
       </div>
 
       {/* Weather / Time chip */}
-      <div className="flex items-center gap-2 justify-center text-xs text-zinc-400">
+      <div className="flex items-center gap-2 justify-center text-xs text-zinc-400 flex-wrap">
         <span>{weatherIcon} <span className="capitalize">{world?.weather || 'cerah'}</span></span>
         <span className="text-zinc-700">|</span>
         <span>{timeIcon} <span className="capitalize">{world?.timeOfDay || 'pagi'}</span></span>
+        {world?.season && (
+          <>
+            <span className="text-zinc-700">|</span>
+            <span className="capitalize">{world.season}</span>
+          </>
+        )}
       </div>
 
       {/* Stats */}

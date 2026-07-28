@@ -22,7 +22,7 @@ export default function Biography({ gameState, onClose, onExport, onReturn }: Bi
   const relationshipsCount = gameState.npcs?.length || 0
   const itemsCollected = (player.inventory || []).length
   const skillsLearned = (player.skills || []).length
-  const questsCompleted = gameState.quests?.filter(q => q.status === 'completed' || q.status === 'failed').length || 0
+  const questsCompleted = gameState.quests?.filter(q => q.status === 'completed').length || 0
   const questsFailed = gameState.quests?.filter(q => q.status === 'failed').length || 0
 
   // Timeline: filter significant events
