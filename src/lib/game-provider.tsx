@@ -2,9 +2,10 @@
 
 import { createContext, useContext, useCallback, useRef, useState, useEffect } from 'react'
 import type { GameState, StoryLog, CombatState, CombatEnemy, CombatLogEntry } from '@/lib/types'
-import { createInitialState, calculatePlayerMaxHp, calculatePlayerMaxMana, calculatePlayerAttack, calculatePlayerDefense, calculateXpToNext, addXp } from '@/lib/game'
+import { createInitialState, calculatePlayerMaxHp, calculatePlayerMaxMana, calculatePlayerAttack, calculatePlayerDefense, calculateXpToNext, addXp, type SaveSlotMeta } from '@/lib/game'
 import { callAI, buildGamePrompt } from '@/lib/ai'
 import { saveGame, loadGame, listSaves, deleteSave, type SaveMeta } from '@/lib/storage'
+import { initAudio, autoSwitchAmbient, playLevelUpSFX, playDamageSFX, playHealSFX, playQuestSFX, playCombatStartSFX, playCombatEndSFX, playCoinSFX, playMagicSFX, playClickSFX, playNotificationSFX } from '@/lib/audio'
 
 interface GameContextType {
   gameState: GameState | null
@@ -13,7 +14,7 @@ interface GameContextType {
   saves: SaveMeta[]
   newGame: () => Promise<void>
   continueGame: (id: string) => Promise<void>
-  saveCurrentGame: () => Promise<void>
+  saveCurrentGame: (saveSlot?: SaveSlotMeta) => Promise<void>
   deleteSaveGame: (id: string) => Promise<void>
   refreshSaves: () => Promise<void>
   submitAction: (action: string) => Promise<void>
@@ -127,6 +128,11 @@ Suasana puitis, epik, emosional. Bahasa Indonesia yang indah.` }
 
       setGameState(state)
       await saveGame(state.id, state)
+
+      // Initialize audio system
+      initAudio()
+      // Start ambient based on initial world state
+      autoSwitchAmbient(state.world, { inCombat: false })
     } catch (e: unknown) {
       setError(`Gagal membuat dunia: ${e instanceof Error ? e.message : String(e)}`)
     }
@@ -289,22 +295,42 @@ Suasana puitis, epik, emosional. Bahasa Indonesia yang indah.` }
       newState.updatedAt = Date.now()
       newState.playTime += 1000
 
+      // Track last action for save slot metadata
+      newState.saveSlot = {
+        slotIndex: -1,
+        name: '',
+        isAutoSave: false,
+        isQuickSave: false,
+        lastAction: action,
+      }
+
       setGameState(newState)
       await saveGame(newState.id, newState)
+
+      // Auto-switch ambient based on world context
+      autoSwitchAmbient(newState.world, newState.combat ? { inCombat: true } : undefined)
     } catch (e: unknown) {
       setError(`AI error: ${e instanceof Error ? e.message : String(e)}`)
     }
     setIsLoading(false)
   }, [])
 
-  const saveCurrentGame = useCallback(async () => {
+  const saveCurrentGame = useCallback(async (saveSlot?: SaveSlotMeta) => {
     if (!gameRef.current) return
-    await saveGame(gameRef.current.id, gameRef.current)
+    const state = { ...gameRef.current }
+    if (saveSlot) {
+      state.saveSlot = saveSlot
+    }
+    await saveGame(state.id, state)
   }, [])
 
   const continueGame = useCallback(async (id: string) => {
     const data = await loadGame(id)
-    if (data) setGameState(data)
+    if (data) {
+      setGameState(data)
+      initAudio()
+      autoSwitchAmbient(data.world, { inCombat: data.combat?.inCombat ?? false })
+    }
   }, [])
 
   const deleteSaveGame = useCallback(async (id: string) => {
@@ -380,6 +406,10 @@ Suasana puitis, epik, emosional. Bahasa Indonesia yang indah.` }
     const newState = { ...state, combat: newCombat, player: { ...state.player, health: state.player.health || playerMaxHp, maxHealth: playerMaxHp, mana: state.player.mana || playerMaxMana, maxMana: playerMaxMana } }
     setGameState(newState)
     saveGame(newState.id, newState)
+
+    // Play combat start SFX and switch to combat ambient
+    playCombatStartSFX()
+    autoSwitchAmbient(newState.world, { inCombat: true })
   }, [])
 
   const addCombatLog = (combat: CombatState, entry: Omit<CombatLogEntry, 'id' | 'timestamp'>) => {
@@ -435,6 +465,7 @@ Suasana puitis, epik, emosional. Bahasa Indonesia yang indah.` }
       actionName = 'Serangan'
       actionType = isCrit ? 'player_crit' : 'player_attack'
       addCombatLog(combat, { type: actionType, message: `${player.name} menyerang ${enemy.name} untuk ${damage} damage!${isCrit ? ' 💥 CRITICAL!' : ''}`, damage })
+      playClickSFX()
     } else if (action === 'skill' && skillId) {
       const skill = player.skills?.find((s: any) => s.id === skillId)
       if (skill) {
@@ -453,6 +484,7 @@ Suasana puitis, epik, emosional. Bahasa Indonesia yang indah.` }
         actionName = skill.name
         actionType = 'player_skill'
         addCombatLog(combat, { type: actionType, message: `${player.name} menggunakan ${skill.name} pada ${enemy.name} untuk ${damage} damage!`, damage })
+        playMagicSFX()
       }
     } else if (action === 'item' && itemId) {
       const inventory = player.inventory || []
@@ -469,6 +501,7 @@ Suasana puitis, epik, emosional. Bahasa Indonesia yang indah.` }
           // Consume item
           player.inventory = [...inventory]
           player.inventory.splice(itemIndex, 1)
+          playHealSFX()
         } else if (item.spellType && item.attack) {
           // Spell scroll
           manaCost = item.manaCost || 0
@@ -486,6 +519,7 @@ Suasana puitis, epik, emosional. Bahasa Indonesia yang indah.` }
           // Consume spell scroll
           player.inventory = [...inventory]
           player.inventory.splice(itemIndex, 1)
+          playMagicSFX()
         }
       }
     } else if (action === 'flee') {
@@ -507,19 +541,22 @@ Suasana puitis, epik, emosional. Bahasa Indonesia yang indah.` }
     combat.enemyHp = enemy.hp
 
     // Check victory
-    if (enemy.hp <= 0) {
-      // Victory!
-      const xpReward = enemy.xpReward || 50
-      const loot = enemy.loot || []
-      addCombatLog(combat, { type: 'victory', message: `${enemy.name} dikalahkan! Mendapat ${xpReward} XP${loot.length > 0 ? ` dan ${loot.join(', ')}` : ''}!` })
-      
-      // Apply XP and loot
-      const xpResult = addXp(player, xpReward)
-      if (xpResult.leveledUp) {
-        addCombatLog(combat, { type: 'status', message: `🎉 LEVEL UP! ${player.name} naik ke Level ${xpResult.newLevel}!` })
-      }
-      
-      // Add loot to inventory
+        if (enemy.hp <= 0) {
+          // Victory!
+          const xpReward = enemy.xpReward || 50
+          const loot = enemy.loot || []
+          addCombatLog(combat, { type: 'victory', message: `${enemy.name} dikalahkan! Mendapat ${xpReward} XP${loot.length > 0 ? ` dan ${loot.join(', ')}` : ''}!` })
+
+          // Apply XP and loot
+          const xpResult = addXp(player, xpReward)
+          if (xpResult.leveledUp) {
+            addCombatLog(combat, { type: 'status', message: `🎉 LEVEL UP! ${player.name} naik ke Level ${xpResult.newLevel}!` })
+            playLevelUpSFX()
+          }
+          playCombatEndSFX(true)
+          if (loot.length > 0) playCoinSFX()
+
+          // Add loot to inventory
       if (loot.length > 0 && player.inventory) {
         for (const lootName of loot) {
           const existingItem = player.inventory.find((i: any) => i.name === lootName)
@@ -548,6 +585,9 @@ Suasana puitis, epik, emosional. Bahasa Indonesia yang indah.` }
       const newState = { ...state, combat: { ...combat, inCombat: false, enemy: undefined }, player }
       setGameState(newState)
       await saveGame(newState.id, newState)
+
+      // Switch ambient back to world context after combat ends
+      autoSwitchAmbient(newState.world, { inCombat: false })
       setIsLoading(false)
       return
     }
@@ -556,27 +596,28 @@ Suasana puitis, epik, emosional. Bahasa Indonesia yang indah.` }
     combat.turn = 'enemy'
     
     // Simple enemy AI
-    let enemyAction = 'attack'
-    const enemySkills = enemy.skills || []
-    const availableSkills = enemySkills.filter((s: any) => s.currentCooldown <= 0)
-    
-    if (enemy.hp < enemy.maxHp * 0.3 && availableSkills.some((s: any) => s.type === 'heal')) {
-      enemyAction = 'heal'
-    } else if (availableSkills.length > 0 && Math.random() < 0.3) {
-      enemyAction = 'skill'
-    }
+        let enemyAction = 'attack'
+        const enemySkills = enemy.skills || []
+        const availableSkills = enemySkills.filter((s: any) => s.currentCooldown <= 0)
 
-    if (enemyAction === 'attack') {
-      const enemyAtk = enemy.attack || 10
-      const playerDef = calculatePlayerDefense(player)
-      const baseDamage = Math.max(1, enemyAtk - Math.floor(playerDef * 0.5))
-      const isCrit = Math.random() < 0.05
-      damage = isCrit ? Math.floor(baseDamage * 1.5) : baseDamage
-      damage = Math.floor(damage * (0.85 + Math.random() * 0.3))
-      player.health = Math.max(0, (player.health || combat.playerHp) - damage)
-      combat.playerHp = player.health
-      addCombatLog(combat, { type: isCrit ? 'enemy_crit' : 'enemy_attack', message: `${enemy.name} menyerang ${player.name} untuk ${damage} damage!${isCrit ? ' 💥 CRITICAL!' : ''}`, damage })
-    } else if (enemyAction === 'skill') {
+        if (enemy.hp < enemy.maxHp * 0.3 && availableSkills.some((s: any) => s.type === 'heal')) {
+          enemyAction = 'heal'
+        } else if (availableSkills.length > 0 && Math.random() < 0.3) {
+          enemyAction = 'skill'
+        }
+
+        if (enemyAction === 'attack') {
+          const enemyAtk = enemy.attack || 10
+          const playerDef = calculatePlayerDefense(player)
+          const baseDamage = Math.max(1, enemyAtk - Math.floor(playerDef * 0.5))
+          const isCrit = Math.random() < 0.05
+          damage = isCrit ? Math.floor(baseDamage * 1.5) : baseDamage
+          damage = Math.floor(damage * (0.85 + Math.random() * 0.3))
+          player.health = Math.max(0, (player.health || combat.playerHp) - damage)
+          combat.playerHp = player.health
+          addCombatLog(combat, { type: isCrit ? 'enemy_crit' : 'enemy_attack', message: `${enemy.name} menyerang ${player.name} untuk ${damage} damage!${isCrit ? ' 💥 CRITICAL!' : ''}`, damage })
+          playDamageSFX()
+        } else if (enemyAction === 'skill') {
       const skill = availableSkills[Math.floor(Math.random() * availableSkills.length)]
       skill.currentCooldown = skill.cooldown
       if (skill.type === 'attack' && skill.damage) {
@@ -626,6 +667,10 @@ Suasana puitis, epik, emosional. Bahasa Indonesia yang indah.` }
       })
       setGameState(newState)
       await saveGame(newState.id, newState)
+
+      // Switch ambient back to world context after combat ends (defeat)
+      playCombatEndSFX(false)
+      autoSwitchAmbient(newState.world, { inCombat: false })
       setIsLoading(false)
       return
     }
@@ -636,6 +681,9 @@ Suasana puitis, epik, emosional. Bahasa Indonesia yang indah.` }
     const newState = { ...state, combat, player }
     setGameState(newState)
     await saveGame(newState.id, newState)
+
+      // Auto-switch ambient based on world context (still in combat)
+      autoSwitchAmbient(newState.world, { inCombat: true })
     setIsLoading(false)
   }, [])
 
@@ -647,6 +695,10 @@ Suasana puitis, epik, emosional. Bahasa Indonesia yang indah.` }
     const newState = { ...state, combat }
     setGameState(newState)
     saveGame(newState.id, newState)
+
+    // Play combat end SFX and switch ambient back to world context
+    playCombatEndSFX(victory)
+    autoSwitchAmbient(newState.world, { inCombat: false })
   }, [])
 
   return (

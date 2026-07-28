@@ -1,4 +1,6 @@
-import type { GameState, CombatState } from './types'
+import type { GameState, CombatState, SaveSlotMeta } from './types'
+
+export type { SaveSlotMeta }
 
 export function createInitialState(): GameState {
   const initialCombat: CombatState = {

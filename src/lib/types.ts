@@ -227,4 +227,16 @@ export interface GameState {
   // Context buat AI — ringkasan
   worldMemory?: string
   narrationBuffer?: string
+
+  // Save slot metadata
+  saveSlot?: SaveSlotMeta
+}
+
+export interface SaveSlotMeta {
+  slotIndex: number // 0-9 for quick save slots
+  name: string // User-defined name
+  thumbnail?: string // Base64 encoded thumbnail (optional)
+  isAutoSave: boolean
+  isQuickSave: boolean
+  lastAction?: string // Last player action for context
 }

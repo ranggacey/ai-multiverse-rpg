@@ -34,6 +34,18 @@ export interface SaveMeta {
   chapter: number
   playTime: number
   isAlive: boolean
+  // Enhanced metadata
+  saveSlot?: {
+    slotIndex: number
+    name: string
+    isAutoSave: boolean
+    isQuickSave: boolean
+    lastAction?: string
+  }
+  location?: string
+  level?: number
+  season?: string
+  weather?: string
 }
 
 export async function listSaves(): Promise<SaveMeta[]> {
@@ -43,18 +55,33 @@ export async function listSaves(): Promise<SaveMeta[]> {
   const req = store.getAll()
   return new Promise((resolve, reject) => {
     req.onsuccess = () => {
-      const saves = (req.result as GameState[]).map(s => ({
-        id: s.id,
-        name: s.player?.name || 'Unknown',
-        createdAt: s.createdAt,
-        updatedAt: s.updatedAt,
-        playerName: s.player?.name || 'Unknown',
-        playerAge: s.player?.age || 0,
-        worldName: s.world?.name || 'Unknown',
-        chapter: s.currentChapter || 0,
-        playTime: s.playTime || 0,
-        isAlive: s.isAlive !== false,
-      }))
+      const saves = (req.result as GameState[]).map(s => {
+        const slotMeta = s.saveSlot
+        return {
+          id: s.id,
+          name: s.player?.name || 'Unknown',
+          createdAt: s.createdAt,
+          updatedAt: s.updatedAt,
+          playerName: s.player?.name || 'Unknown',
+          playerAge: s.player?.age || 0,
+          worldName: s.world?.name || 'Unknown',
+          chapter: s.currentChapter || 0,
+          playTime: s.playTime || 0,
+          isAlive: s.isAlive !== false,
+          // Enhanced metadata
+          saveSlot: slotMeta ? {
+            slotIndex: slotMeta.slotIndex,
+            name: slotMeta.name,
+            isAutoSave: slotMeta.isAutoSave,
+            isQuickSave: slotMeta.isQuickSave,
+            lastAction: slotMeta.lastAction,
+          } : undefined,
+          location: s.player?.location,
+          level: s.player?.level,
+          season: s.world?.season,
+          weather: s.world?.weather,
+        }
+      })
       resolve(saves)
     }
     req.onerror = () => reject(req.error)
