@@ -83,10 +83,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
       if (!playerName) throw new Error(`Gagal parse nama player. Respon AI: ${pt.slice(0, 300)}`)
 
-      // Step 3: Narasi opening
+      // Step 3: Narasi opening — pake user message biar gak kosong
       const birthRaw = await callAI([
-        { role: 'system', content: `Kamu narator RPG fantasi. Tulis 1 paragraf kelahiran ${playerName} di dunia ${worldName}. ${playerName} lahir sebagai ${playerBgType} dari ${playerFrom}. ${worldDesc}. 
-Suasana puitis, epik, emosional. Bahasa Indonesia yang indah.` }
+        { role: 'system', content: `Kamu narator RPG fantasi. Tulis 1 paragraf kelahiran.` },
+        { role: 'user', content: `Tulis opening kelahiran ${playerName} di dunia ${worldName}. ${playerName} lahir sebagai ${playerBgType} dari ${playerFrom}. ${worldDesc}. Suasana puitis, epik, emosional. Bahasa Indonesia yang indah.` }
       ], { temperature: 0.9, maxTokens: 800 })
 
       const state = createInitialState()
