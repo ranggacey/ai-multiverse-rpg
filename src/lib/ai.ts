@@ -1,29 +1,15 @@
-// AI client — langsung ke Google Gemini API (AI Studio)
-// Format: OpenAI-compatible via OpenRouter removed, now direct Gemini
+// AI client — MIMO Anthropic-compatible API
+// Cepat, gratis, gak pake slop
 
-const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || ''
-const GEMINI_MODEL = process.env.NEXT_PUBLIC_GEMINI_MODEL || 'gemini-2.0-flash'
-const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
+const API_BASE = 'https://token-plan-sgp.xiaomimimo.com/anthropic/v1'
+const API_KEY = process.env.NEXT_PUBLIC_MIMO_API_KEY || ''
+const DEFAULT_MODEL = 'mimo-v2.5-pro'
 
 export interface AIResponse {
   content: string
   usage?: {
     promptTokens: number
     completionTokens: number
-  }
-}
-
-// Convert OpenAI format messages to Gemini format
-function convertToGemini(messages: { role: string; content: string }[]) {
-  const systemPrompt = messages.find(m => m.role === 'system')?.content || ''
-  const userMessages = messages.filter(m => m.role !== 'system')
-  
-  return {
-    systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
-    contents: userMessages.map(m => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }]
-    }))
   }
 }
 
@@ -35,13 +21,15 @@ export async function callAI(
     model?: string
   }
 ): Promise<AIResponse> {
-  const model = options?.model || process.env.NEXT_PUBLIC_GEMINI_MODEL || 'gemini-1.5-flash'
-  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY
-  const baseUrl = `${GEMINI_BASE}/${model}:generateContent`
+  const model = options?.model || process.env.NEXT_PUBLIC_MIMO_MODEL || DEFAULT_MODEL
+  const apiKey = process.env.NEXT_PUBLIC_MIMO_API_KEY || API_KEY
 
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY tidak diset. Set NEXT_PUBLIC_GEMINI_API_KEY di env.')
-  }
+  // Convert OpenAI format ke Anthropic format
+  const systemMsg = messages.find(m => m.role === 'system')
+  const userMsgs = messages.filter(m => m.role !== 'system').map(m => ({
+    role: m.role === 'assistant' ? 'assistant' : 'user',
+    content: m.content
+  }))
 
   let lastError: Error | null = null
 
@@ -50,20 +38,21 @@ export async function callAI(
     const timeout = setTimeout(() => controller.abort(), 120000)
 
     try {
-      const { systemInstruction, contents } = convertToGemini(messages)
-      
-      const body: any = { contents }
-      if (systemInstruction) body.systemInstruction = systemInstruction
-      if (options?.temperature !== undefined) {
-        body.generationConfig = { temperature: options.temperature }
+      const body: any = {
+        model,
+        max_tokens: options?.maxTokens || 4096,
+        messages: userMsgs,
       }
-      if (options?.maxTokens) {
-        body.generationConfig = { ...body.generationConfig, maxOutputTokens: options.maxTokens }
-      }
+      if (systemMsg) body.system = systemMsg.content
+      if (options?.temperature !== undefined) body.temperature = options.temperature
 
-      const res = await fetch(`${baseUrl}?key=${apiKey}`, {
+      const res = await fetch(`${API_BASE}/messages`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
         body: JSON.stringify(body),
         signal: controller.signal,
       })
@@ -72,7 +61,7 @@ export async function callAI(
       const text = await res.text()
 
       if (!res.ok) {
-        throw new Error(`Gemini API error: ${res.status} - ${text.slice(0, 200)}`)
+        throw new Error(`MIMO API error: ${res.status} - ${text.slice(0, 200)}`)
       }
 
       let data
@@ -82,33 +71,38 @@ export async function callAI(
         throw new Error(`Invalid JSON: ${text.slice(0, 200)}`)
       }
 
-      console.log('[Gemini] response:', JSON.stringify(data).slice(0, 300))
+      // Extract content from Anthropic format
+      const contentBlock = data.content?.find((c: any) => c.type === 'text')
+      const content = contentBlock?.text?.trim()
+      const thinkingBlock = data.content?.find((c: any) => c.type === 'thinking')
 
-      // Extract content from Gemini response format
-      const content = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
-      
+      if (!content && thinkingBlock?.thinking) {
+        // Fallback: pake thinking kalo content kosong
+        return { content: thinkingBlock.thinking.trim() }
+      }
+
       if (!content) {
-        throw new Error(`Gemini ngasih respon kosong: ${JSON.stringify(data).slice(0, 200)}`)
+        throw new Error(`MIMO ngasih respon kosong`)
       }
 
       return {
         content,
-        usage: data.usageMetadata ? {
-          promptTokens: data.usageMetadata.promptTokenCount || 0,
-          completionTokens: data.usageMetadata.candidatesTokenCount || 0,
+        usage: data.usage ? {
+          promptTokens: data.usage.input_tokens || 0,
+          completionTokens: data.usage.output_tokens || 0,
         } : undefined,
       }
     } catch (err: any) {
       clearTimeout(timeout)
       lastError = err
-      if (err.name === 'AbortError' || err.message.includes('timeout')) {
-        console.log(`[Gemini] Attempt ${attempt} timeout, retrying...`)
+      if (err.name === 'AbortError') {
+        console.log(`[MIMO] Attempt ${attempt} timeout, retrying...`)
         continue
       }
       throw err
     }
   }
-  throw lastError || new Error('Gemini API gagal setelah 3 percobaan')
+  throw lastError || new Error('MIMO API gagal setelah 3 percobaan')
 }
 
 // ============================================================
