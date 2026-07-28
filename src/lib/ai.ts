@@ -120,6 +120,10 @@ ATURAN NARASI:
 - Pemain mulai umur 5 tahun — perlakukan sesuai umur
 - Jangan dump semua lore — ungkap pelan-pelan
 - QUEST: Pemain bisa menerima dan menyelesaikan misi dari NPC
+- COMPANION: Pemain bisa merekrut teman setia yang ikut petualang
+- CODEX: Dunia punya lore yang terbuka pelan-pelan
+- JOURNAL: Pemain catat pengalaman pribadi
+- FACTION: Reputasi mempengaruhi dunia
 
 LABEL YANG HARUS DISELIPKAN DI NARASI (jika ada perubahan):
 USIA: [umur baru] — saat usia berubah
@@ -134,8 +138,26 @@ QUEST_PROGRESS: [nama quest] | [progress] | [max] — saat quest progress maju
 ||SKILL: [nama skill] | [combat/magic/passive] | [level] | [deskripsi] — saat pemain belajar skill baru
 |CHP: [angka bab baru] — saat chapter baru dimulai (misal: CHP: 3)
 
+=== COMPANION LABELS ===
+COMPANION_JOIN: [nama] | [race] | [class] | [loyalty] | [backstory singkat] — saat companion bergabung
+COMPANION_LEAVE: [nama] | [alasan] — saat companion pergi
+COMPANION_LOYALTY: [nama] | [nilai baru] — saat loyalty berubah signifikan (+/-10)
+COMPANION_ROMANCE: [nama] | [level baru] — saat romance level berubah
+COMPANION_LEVELUP: [nama] | [level baru] — saat companion naik level
+COMPANION_QUEST: [nama] | [quest name] | [deskripsi] — saat companion personal quest mulai
+
+=== CODEX LABELS ===
+CODEX_DISCOVER: [entry_id] | [category] | [judul] | [deskripsi singkat] — saat entry codex ditemukan
+
+=== JOURNAL LABELS ===
+JOURNAL_ENTRY: [judul] | [kategori] | [konten] — saat pemain menulis journal
+
+=== FACTION LABELS ===
+FACTION_REP: [faction_id] | [nilai baru] — saat reputasi faksi berubah
+FACTION_RANK: [faction_id] | [rank baru] — saat rank faksi naik/turun
+
 Contoh label di tengah narasi:
-"...Kael berjalan menyusuri jalan setapak. CUACA: hujan WAKTU: malam USIA: 10 LOKASI: Desa Oakvale STAT:str:6,agi:5,int:5,cha:5 NPC: Sersan Varian | netral | Seorang veteran perang berjanggut tebal QUEST: Berburu Serigala | Bunuh 3 serigala di hutan utara | side QUEST_PROGRESS: Berburu Serigala | 1 | 3"
+"...Kael berjalan menyusuri jalan setapak. CUACA: hujan WAKTU: malam USIA: 10 LOKASI: Desa Oakvale STAT:str:6,agi:5,int:5,cha:5 NPC: Sersan Varian | netral | Seorang veteran perang berjanggut tebal QUEST: Berburu Serigala | Bunuh 3 serigala di hutan utara | side QUEST_PROGRESS: Berburu Serigala | 1 | 3 COMPANION_JOIN: Elara | Elf | Mage | 60 | Seorang penyihir yatim piatu yang mencari saudaranya CODEX_DISCOVER: entry_001 | world | Hutan Elderwood | Hutan purba yang dijaga roh-langit"
 
 PENTING:
 - Label cukup diselipkan di baris mana saja dalam narasi
@@ -148,12 +170,37 @@ export function buildGamePrompt(
   player: any,
   worldMemory: string,
   action: string,
-  recentNarration: string
+  recentNarration: string,
+  companions?: any[],
+  codex?: any,
+  journal?: any,
+  factions?: any
 ): { role: string; content: string }[] {
+  const activeCompanions = companions?.filter((c: any) => c.isActive) || []
+  const companionContext = activeCompanions.length > 0
+    ? `COMPANION AKTIF: ${activeCompanions.map((c: any) => `${c.name} (${c.class} Lv.${c.level}, Loyalty: ${c.loyalty})`).join(', ')}`
+    : 'COMPANION AKTIF: Tidak ada'
+
+  const codexContext = codex
+    ? `CODEX TERBUKA: ${codex.discoveredCount}/${codex.totalCount} entry`
+    : 'CODEX: Belum ada'
+
+  const journalContext = journal
+    ? `JOURNAL: ${journal.entries.length} catatan (${journal.pinnedEntries.length} dipin)`
+    : 'JOURNAL: Kosong'
+
+  const factionContext = factions && Object.keys(factions.playerReputation).length > 0
+    ? `FAKSI: ${Object.entries(factions.playerReputation).map(([id, rep]) => `${id}: ${rep}`).join(', ')}`
+    : 'FAKSI: Netral'
+
   return [
     { role: 'system', content: GAME_MASTER_PROMPT },
     { role: 'system', content: `DUNIA: ${world?.name || 'Unknown'} | ${world?.description || ''}` },
     { role: 'system', content: `PEMAIN: ${player?.name || 'Unknown'} (${player?.age || '?'} tahun) — ${player?.background?.type || ''} dari ${player?.location || '?'}` },
+    { role: 'system', content: companionContext },
+    { role: 'system', content: codexContext },
+    { role: 'system', content: journalContext },
+    { role: 'system', content: factionContext },
     { role: 'system', content: `CATATAN: ${worldMemory || ''}` },
     { role: 'system', content: `SEBELUMNYA: ${recentNarration.slice(-500)}` },
     { role: 'user', content: `${action}` },

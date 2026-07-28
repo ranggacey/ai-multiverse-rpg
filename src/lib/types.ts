@@ -59,6 +59,200 @@ export interface NPC {
   loot?: string[]
 }
 
+// ============================================================
+// COMPANION / PARTY SYSTEM
+// ============================================================
+export interface Companion {
+  id: string
+  name: string
+  title?: string
+  race: string
+  class: string
+  level: number
+  xp: number
+  xpToNext: number
+  
+  // Base stats
+  stats: {
+    str: number
+    agi: number
+    int: number
+    cha: number
+  }
+  
+  // Derived stats
+  maxHp: number
+  hp: number
+  maxMana: number
+  mana: number
+  attack: number
+  defense: number
+  speed: number
+  
+  // Skills
+  skills: Skill[]
+  
+  // Equipment
+  equipment: {
+    weapon?: Item
+    armor?: Item
+    accessory?: Item
+  }
+  
+  // Personality & Relationship
+  personality: CompanionPersonality
+  loyalty: number // 0-100
+  trust: number // 0-100
+  romanceLevel: number // 0-100, unlocks at high trust
+  backstory: string
+  personalQuest?: Quest
+  personalQuestCompleted: boolean
+  
+  // Combat AI
+  combatBehavior: 'aggressive' | 'defensive' | 'support' | 'balanced' | 'tactical'
+  preferredTarget: 'weakest' | 'strongest' | 'caster' | 'healer' | 'tank' | 'random'
+  
+  // Status
+  isActive: boolean // In active party
+  joinedAt: WorldDate
+  location: string // Where they are if not in party
+  statusEffects: StatusEffect[]
+  
+  // Dialogue
+  dialogueLines: CompanionDialogue[]
+}
+
+export interface CompanionPersonality {
+  traits: string[] // e.g., ['brave', 'cynical', 'loyal', 'greedy']
+  likes: string[]
+  dislikes: string[]
+  fears: string[]
+  values: string[]
+  speechStyle: 'formal' | 'casual' | 'gruff' | 'cheerful' | 'mysterious' | 'sarcastic'
+  quirks: string[]
+}
+
+export interface CompanionDialogue {
+  trigger: 'greeting' | 'idle' | 'combat_start' | 'combat_victory' | 'combat_defeat' | 'level_up' | 'low_hp' | 'critical_hp' | 'camp' | 'morning' | 'night' | 'weather' | 'location' | 'quest_progress' | 'quest_complete' | 'loyalty_high' | 'loyalty_low' | 'trust_high' | 'romance' | 'personal_quest' | 'death_nearby'
+  conditions?: string[] // e.g., ['loyalty > 80', 'romance > 50']
+  lines: string[]
+  weight: number // For random selection
+}
+
+export interface StatusEffect {
+  id: string
+  name: string
+  type: 'buff' | 'debuff' | 'dot' | 'hot' | 'stun' | 'silence' | 'root' | 'fear' | 'charm' | 'poison' | 'burn' | 'freeze' | 'bleed'
+  duration: number // turns remaining
+  magnitude: number
+  source: string
+  description: string
+}
+
+export interface PartyState {
+  maxSize: number // Default 4 (player + 3 companions)
+  formation: 'standard' | 'defensive' | 'aggressive' | 'support' | 'custom'
+  activeMembers: string[] // Companion IDs in party (max 3)
+  reserveMembers: string[] // Companion IDs not in party
+  sharedXp: boolean
+  sharedLoot: boolean
+  tactics: PartyTactics
+}
+
+export interface PartyTactics {
+  focusFire: boolean
+  protectWeak: boolean
+  useConsumables: boolean
+  autoHealThreshold: number // HP % to auto-heal
+  autoManaThreshold: number // Mana % to auto-restore
+  priorityTargets: string[] // Enemy types to prioritize
+}
+
+export interface CodexState {
+  entries: CodexEntry[]
+  categories: CodexCategory[]
+  discoveredCount: number
+  totalCount: number
+}
+
+export interface CodexEntry {
+  id: string
+  categoryId: string
+  title: string
+  content: string
+  shortDescription: string
+  isDiscovered: boolean
+  discoveredAt?: WorldDate
+  relatedEntries: string[] // Other entry IDs
+  tags: string[]
+  icon?: string
+  rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
+  source: 'exploration' | 'dialogue' | 'book' | 'quest' | 'combat' | 'observation'
+}
+
+export interface CodexCategory {
+  id: string
+  name: string
+  description: string
+  icon: string
+  color: string
+  parentId?: string
+  order: number
+}
+
+export interface JournalState {
+  entries: JournalEntry[]
+  categories: string[]
+  pinnedEntries: string[]
+}
+
+export interface JournalEntry {
+  id: string
+  title: string
+  content: string
+  category: string
+  tags: string[]
+  createdAt: WorldDate
+  updatedAt: WorldDate
+  isPinned: boolean
+  linkedEntities: { type: 'npc' | 'quest' | 'location' | 'item' | 'companion'; id: string; name: string }[]
+}
+
+export interface FactionState {
+  factions: Faction[]
+  playerReputation: Record<string, number> // factionId -> reputation
+}
+
+export interface Faction {
+  id: string
+  name: string
+  description: string
+  type: 'guild' | 'nation' | 'cult' | 'order' | 'family' | 'mercenary' | 'merchant' | 'other'
+  alignment: 'lawful_good' | 'neutral_good' | 'chaotic_good' | 'lawful_neutral' | 'true_neutral' | 'chaotic_neutral' | 'lawful_evil' | 'neutral_evil' | 'chaotic_evil'
+  territory: string[]
+  leader?: string
+  members: string[] // NPC/Companion IDs
+  reputation: number // -100 to 100
+  ranks: FactionRank[]
+  currentRank: string
+  benefits: FactionBenefit[]
+  relations: Record<string, number> // factionId -> relation (-100 to 100)
+}
+
+export interface FactionRank {
+  name: string
+  minReputation: number
+  benefits: string[]
+  title?: string
+}
+
+export interface FactionBenefit {
+  type: 'discount' | 'access' | 'quest' | 'item' | 'training' | 'safehouse'
+  description: string
+  requiredRank: string
+  value?: number
+}
+
 export interface Quest {
   id: string
   name: string
@@ -67,6 +261,10 @@ export interface Quest {
   type: 'main' | 'side' | 'personal'
   progress: number
   maxProgress: number
+  giver?: string
+  location?: string
+  reward?: string
+  timeLimit?: WorldDate
 }
 
 export interface StoryLog {
@@ -243,6 +441,20 @@ export interface GameState {
 
   // Save slot metadata
   saveSlot?: SaveSlotMeta
+
+  // ===== NEW SYSTEMS =====
+  // Companion / Party system
+  companions?: Companion[]
+  party?: PartyState
+
+  // Codex / Lorebook
+  codex?: CodexState
+
+  // Journal / Notes
+  journal?: JournalState
+
+  // Faction / Reputation
+  factions?: FactionState
 }
 
 export interface SaveSlotMeta {

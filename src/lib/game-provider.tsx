@@ -2,7 +2,22 @@
 
 import { createContext, useContext, useCallback, useRef, useState, useEffect } from 'react'
 import type { GameState, StoryLog, CombatState, CombatEnemy, CombatLogEntry, SaveSlot } from '@/lib/types'
-import { createInitialState, calculatePlayerMaxHp, calculatePlayerMaxMana, calculatePlayerAttack, calculatePlayerDefense, calculateXpToNext, addXp, type SaveSlotMeta } from '@/lib/game'
+import { 
+  createInitialState, 
+  calculatePlayerMaxHp, 
+  calculatePlayerMaxMana, 
+  calculatePlayerAttack, 
+  calculatePlayerDefense, 
+  calculateXpToNext, 
+  addXp, 
+  type SaveSlotMeta,
+  // New system helpers
+  createCompanion,
+  addCompanionXp,
+  discoverCodexEntry,
+  addJournalEntry,
+  changeFactionReputation,
+} from '@/lib/game'
 import { callAI, buildGamePrompt } from '@/lib/ai'
 import { saveGame, loadGame, listSaves, deleteSave, type SaveMeta, quickSave, autoSave, getQuickSaveSlots, getCustomSaveSlots, getAutoSaveSlot, saveToSlot, loadFromSlot, listSaveSlots } from '@/lib/storage'
 import { initAudio, autoSwitchAmbient, playLevelUpSFX, playDamageSFX, playHealSFX, playQuestSFX, playCombatStartSFX, playCombatEndSFX, playCoinSFX, playMagicSFX, playClickSFX, playNotificationSFX } from '@/lib/audio'
@@ -289,7 +304,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         { name: state.player.name, gender: state.player.gender, age: state.player.age, background: state.player.background, location: state.player.location },
         state.worldMemory || '',
         action,
-        state.narrationBuffer || ''
+        state.narrationBuffer || '',
+        state.companions,
+        state.codex,
+        state.journal,
+        state.factions
       )
       const res = await callAI(messages, { temperature: 0.85, maxTokens: 2048 })
       const content = res.content
@@ -445,6 +464,170 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
           newState.quests = newState.quests.map(q =>
             q.name === qName ? { ...q, status: 'completed' as const, progress: q.maxProgress } : q
           )
+        }
+      }
+
+      // ===== NEW SYSTEM LABELS =====
+      
+      // Detect COMPANION JOIN
+      const companionJoinMatch = content.match(/COMPANION_JOIN:\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*(\d+)\s*\|\s*([^\n]+)/i)
+      if (companionJoinMatch) {
+        const name = companionJoinMatch[1].trim()
+        const race = companionJoinMatch[2].trim()
+        const className = companionJoinMatch[3].trim()
+        const loyalty = parseInt(companionJoinMatch[4]) || 50
+        const backstory = companionJoinMatch[5].trim()
+        
+        if (!newState.companions) newState.companions = []
+        if (!newState.companions.find((c: any) => c.name === name)) {
+          const companion = createCompanion({
+            name,
+            race,
+            class: className,
+            loyalty,
+            trust: loyalty,
+            backstory,
+            isActive: newState.companions.length < 3, // Auto-join party if space
+            location: newState.player.location,
+            joinedAt: newState.currentDate,
+          })
+          newState.companions = [...newState.companions, companion]
+          
+          // Add to party if space
+          if (newState.party && companion.isActive) {
+            newState.party.activeMembers = [...newState.party.activeMembers, companion.id]
+          } else if (newState.party) {
+            newState.party.reserveMembers = [...newState.party.reserveMembers, companion.id]
+          }
+          
+          newState.storyLog.push({
+            id: crypto.randomUUID(),
+            date: { ...logEntry.date },
+            playerAge: newState.player.age,
+            content: `🤝 ${name} (${race} ${className}) bergabung dengan perjalananmu! Loyalitas awal: ${loyalty}`,
+            type: 'system',
+            location: newState.player.location,
+          })
+        }
+      }
+
+      // Detect COMPANION LOYALTY change
+      const companionLoyaltyMatch = content.match(/COMPANION_LOYALTY:\s*([^|]+)\s*\|\s*(\d+)/i)
+      if (companionLoyaltyMatch && newState.companions) {
+        const name = companionLoyaltyMatch[1].trim()
+        const loyalty = parseInt(companionLoyaltyMatch[2]) || 50
+        newState.companions = newState.companions.map((c: any) =>
+          c.name === name ? { ...c, loyalty: Math.max(0, Math.min(100, loyalty)) } : c
+        )
+      }
+
+      // Detect COMPANION ROMANCE change
+      const companionRomanceMatch = content.match(/COMPANION_ROMANCE:\s*([^|]+)\s*\|\s*(\d+)/i)
+      if (companionRomanceMatch && newState.companions) {
+        const name = companionRomanceMatch[1].trim()
+        const romance = parseInt(companionRomanceMatch[2]) || 0
+        newState.companions = newState.companions.map((c: any) =>
+          c.name === name ? { ...c, romanceLevel: Math.max(0, Math.min(100, romance)) } : c
+        )
+      }
+
+      // Detect COMPANION LEVELUP
+      const companionLevelupMatch = content.match(/COMPANION_LEVELUP:\s*([^|]+)\s*\|\s*(\d+)/i)
+      if (companionLevelupMatch && newState.companions) {
+        const name = companionLevelupMatch[1].trim()
+        const level = parseInt(companionLevelupMatch[2]) || 1
+        newState.companions = newState.companions.map((c: any) => {
+          if (c.name === name) {
+            const updated = { ...c, level }
+            addCompanionXp(updated, 0) // Recalculate stats
+            return updated
+          }
+          return c
+        })
+      }
+
+      // Detect COMPANION QUEST
+      const companionQuestMatch = content.match(/COMPANION_QUEST:\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^\n]+)/i)
+      if (companionQuestMatch && newState.companions) {
+        const companionName = companionQuestMatch[1].trim()
+        const questName = companionQuestMatch[2].trim()
+        const questDesc = companionQuestMatch[3].trim()
+        newState.companions = newState.companions.map((c: any) => {
+          if (c.name === companionName) {
+            return {
+              ...c,
+              personalQuest: {
+                id: crypto.randomUUID(),
+                name: questName,
+                description: questDesc,
+                status: 'active' as const,
+                type: 'personal' as const,
+                progress: 0,
+                maxProgress: 3,
+              },
+              personalQuestCompleted: false,
+            }
+          }
+          return c
+        })
+      }
+
+      // Detect CODEX_DISCOVER
+      const codexDiscoverMatch = content.match(/CODEX_DISCOVER:\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^\n]+)/i)
+      if (codexDiscoverMatch && newState.codex) {
+        const entryId = codexDiscoverMatch[1].trim()
+        const category = codexDiscoverMatch[2].trim()
+        const title = codexDiscoverMatch[3].trim()
+        const shortDesc = codexDiscoverMatch[4].trim()
+        
+        discoverCodexEntry(newState, {
+          id: entryId,
+          categoryId: category,
+          title,
+          content: shortDesc,
+          shortDescription: shortDesc,
+          isDiscovered: true,
+          relatedEntries: [],
+          tags: [category],
+          icon: '📖',
+          rarity: 'common',
+          source: 'exploration',
+        })
+      }
+
+      // Detect JOURNAL_ENTRY
+      const journalEntryMatch = content.match(/JOURNAL_ENTRY:\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^\n]+)/i)
+      if (journalEntryMatch && newState.journal) {
+        const title = journalEntryMatch[1].trim()
+        const category = journalEntryMatch[2].trim()
+        const content = journalEntryMatch[3].trim()
+        
+        addJournalEntry(newState, {
+          title,
+          content,
+          category,
+          tags: [category.toLowerCase()],
+          isPinned: false,
+          linkedEntities: [],
+        })
+      }
+
+      // Detect FACTION_REP
+      const factionRepMatch = content.match(/FACTION_REP:\s*([^|]+)\s*\|\s*([-\d]+)/i)
+      if (factionRepMatch && newState.factions) {
+        const factionId = factionRepMatch[1].trim()
+        const rep = parseInt(factionRepMatch[2]) || 0
+        changeFactionReputation(newState, factionId, rep)
+      }
+
+      // Detect FACTION_RANK
+      const factionRankMatch = content.match(/FACTION_RANK:\s*([^|]+)\s*\|\s*([^\n]+)/i)
+      if (factionRankMatch && newState.factions) {
+        const factionId = factionRankMatch[1].trim()
+        const rank = factionRankMatch[2].trim()
+        const faction = newState.factions.factions.find((f: any) => f.id === factionId)
+        if (faction) {
+          faction.currentRank = rank
         }
       }
 
