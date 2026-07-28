@@ -5,7 +5,7 @@ import { WEATHER_ICONS, TIME_ICONS } from '@/lib/types'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useGame } from '@/lib/game-provider'
 import Biography from '@/app/game/biography'
-import { Heart, Zap, Swords, Users, Scroll, Star, Package, Skull, Trophy, Clock, Sparkles, ChevronRight, Menu, X, Coins, Volume2, VolumeX, Music, Speaker, BookOpen } from 'lucide-react'
+import { Heart, Zap, Swords, Users, Scroll, Star, Package, Skull, Trophy, Clock, Sparkles, ChevronRight, Menu, X, Coins, Volume2, VolumeX, Music, Speaker, BookOpen, Shield } from 'lucide-react'
 import { getSettings, updateSettings, setAmbientTrack } from '@/lib/audio'
 import type { AudioSettings } from '@/lib/audio'
 
@@ -320,6 +320,7 @@ export function GameUI({ gameState, error }: GameUIProps) {
   const [showQuests, setShowQuests] = useState(false)
   const [showCodex, setShowCodex] = useState(false)
   const [showJournal, setShowJournal] = useState(false)
+  const [showFactions, setShowFactions] = useState(false)
 
   // Quick action cooldowns
   const [cooldowns, setCooldowns] = useState<Record<string, number>>({})
@@ -611,6 +612,8 @@ export function GameUI({ gameState, error }: GameUIProps) {
           setShowCodex={setShowCodex}
           showJournal={showJournal}
           setShowJournal={setShowJournal}
+          showFactions={showFactions}
+          setShowFactions={setShowFactions}
           weatherIcon={weatherIcon}
           timeIcon={timeIcon}
         />
@@ -641,6 +644,8 @@ export function GameUI({ gameState, error }: GameUIProps) {
               setShowCodex={setShowCodex}
               showJournal={showJournal}
               setShowJournal={setShowJournal}
+              showFactions={showFactions}
+              setShowFactions={setShowFactions}
               weatherIcon={weatherIcon}
               timeIcon={timeIcon}
             />
@@ -671,6 +676,8 @@ function SidebarContent({
   setShowCodex,
   showJournal,
   setShowJournal,
+  showFactions,
+  setShowFactions,
   weatherIcon,
   timeIcon,
 }: {
@@ -687,10 +694,12 @@ function SidebarContent({
   setShowCodex: (v: boolean) => void
   showJournal: boolean
   setShowJournal: (v: boolean) => void
+  showFactions: boolean
+  setShowFactions: (v: boolean) => void
   weatherIcon: string
   timeIcon: string
 }) {
-  const { player, world, npcs, quests, combat, currentChapter, playTime, companions, party, codex, journal } = gameState
+  const { player, world, npcs, quests, combat, currentChapter, playTime, companions, party, codex, journal, factions } = gameState
   const inCombat = combat?.inCombat
   const activeCompanions = (companions || []).filter((c: any) => c.isActive)
   const reserveCompanions = (companions || []).filter((c: any) => !c.isActive)
@@ -981,6 +990,67 @@ function SidebarContent({
                   <p className="text-[9px] text-zinc-600 truncate">{entry.content?.slice(0, 50)}...</p>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── FACTIONS ── */}
+      {((factions?.factions?.length || 0) > 0 || (factions?.playerReputation && Object.keys(factions.playerReputation).length > 0)) && (
+        <div>
+          <button onClick={() => setShowFactions(!showFactions)} className="flex items-center gap-1.5 text-xs font-medium text-zinc-300 mb-2 w-full text-left">
+            <Shield size={14} className="text-amber-400" /> Factions ({Object.keys(factions?.playerReputation || {}).length})
+            <ChevronRight size={12} className={`ml-auto transition-transform ${showFactions ? 'rotate-90' : ''}`} />
+          </button>
+          {showFactions && (
+            <div className="space-y-1">
+              {/* Player reputation display */}
+              {Object.entries(factions?.playerReputation || {}).map(([factionId, rep]: [string, any]) => {
+                const faction = factions?.factions?.find((f: any) => f.id === factionId)
+                return (
+                  <div key={factionId} className="px-2 py-1.5 bg-amber-900/10 border border-amber-800/20 rounded text-xs">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-zinc-200 font-medium flex items-center gap-1">
+                        {faction?.name || factionId}
+                      </span>
+                      <span className={`text-[9px] ${rep >= 50 ? 'text-green-400' : rep >= 0 ? 'text-zinc-400' : 'text-red-400'}`}>
+                        {rep >= 50 ? 'Friendly' : rep >= 25 ? 'Neutral' : rep >= 0 ? 'Unknown' : 'Hostile'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full ${rep >= 50 ? 'bg-green-500' : rep >= 0 ? 'bg-amber-500' : 'bg-red-500'}`} 
+                          style={{ width: `${Math.min(100, Math.max(0, rep + 50))}%` }} 
+                        />
+                      </div>
+                      <span className="text-[9px] text-zinc-500">{rep > 0 ? '+' : ''}{rep}</span>
+                    </div>
+                  </div>
+                )
+              })}
+              {/* Faction list */}
+              {(factions?.factions || []).map((faction: any, i: number) => {
+                const rep = factions?.playerReputation?.[faction.id] || 0
+                return (
+                  <div key={faction.id || i} className="px-2 py-1.5 bg-zinc-800/30 rounded text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-amber-400">🏰</span>
+                      <span className="text-zinc-300 flex-1">{faction.name}</span>
+                      <span className={`text-[9px] px-1 rounded ${
+                        faction.alignment?.includes('good') ? 'bg-green-900/30 text-green-400' :
+                        faction.alignment?.includes('evil') ? 'bg-red-900/30 text-red-400' :
+                        'bg-zinc-700/30 text-zinc-400'
+                      }`}>
+                        {faction.alignment?.replace('_', ' ') || 'neutral'}
+                      </span>
+                    </div>
+                    {faction.currentRank && (
+                      <p className="text-[9px] text-indigo-400 mt-0.5">Rank: {faction.currentRank}</p>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>

@@ -1,5 +1,37 @@
 # Evolution Log - AI Multiverse RPG
 
+## Cycle 2 - Faction System UI
+**Date:** 2026-07-28
+**Cycle:** 2
+**Focus:** Add Faction sidebar UI
+
+### Actions Taken
+- [x] Check git history and build status
+- [x] Analyze project structure - found factions data structure exists but no UI
+- [x] Add Shield icon import
+- [x] Add showFactions state
+- [x] Add Faction UI to sidebar (desktop + mobile)
+- [x] Display player reputation bars and faction details
+- [x] Build verification
+- [x] Update EVOLUTION.md
+- [x] Commit & push
+
+### Build Status
+- **Build Status:** ✅ Passed
+- **Build Output:**
+```
+✓ Compiled successfully in 37.3s
+✓ Generating static pages using 8 workers (8/8) in 550ms
+```
+
+### Changes Made
+- Added Faction panel to sidebar (collapsible, like Codex/Journal)
+- Shows player reputation with visual bars (-50 to +50 scale)
+- Displays faction name, alignment, current rank
+- Supports both faction list and reputation tracking
+
+---
+
 ## Cycle 1 - Initial Self-Evolution Cycle
 **Date:** 2025-01-15
 **Cycle:** 1
