@@ -58,7 +58,7 @@ function Starfield() {
 }
 
 function MainMenu() {
-  const { newGame, isLoading, error, saves, refreshSaves, continueGame, deleteSaveGame, exportSave, importSave } = useGame()
+  const { newGame, isLoading, error, saves, saveSlots, refreshSaves, continueGame, deleteSaveGame, exportSave, importSave, loadAutoSave } = useGame()
 
   useEffect(() => { refreshSaves() }, [refreshSaves])
 
@@ -145,39 +145,135 @@ function MainMenu() {
           </button>
         </div>
 
-        {/* Saves */}
+        {/* Save Slots */}
         <div id="continue-section" className="w-full max-w-lg">
-          <h2 className="text-sm font-medium text-zinc-400 mb-4 text-center">Save Files ({saves.length})</h2>
-          {saves.length === 0 ? (
+          <h2 className="text-sm font-medium text-zinc-400 mb-4 text-center">Save Slots ({saveSlots.length})</h2>
+          {saveSlots.length === 0 ? (
             <div className="text-center py-8 border border-dashed border-zinc-800 rounded-lg">
-              <p className="text-zinc-600 text-sm">Belum ada save file</p>
-              <p className="text-zinc-700 text-xs mt-1">Mulai petualangan baru untuk membuat save</p>
+              <p className="text-zinc-600 text-sm">Belum ada save slot</p>
+              <p className="text-zinc-700 text-xs mt-1">Mulai petualangan baru untuk membuat save, atau gunakan F1-F10 untuk quick save</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {saves.map(save => (
-                <div key={save.id} className="flex items-center gap-3 bg-zinc-900/50 border border-zinc-800 hover:border-zinc-700 rounded-lg p-4 group transition-all">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${save.isAlive ? 'bg-emerald-400' : 'bg-red-400'}`} />
-                      <p className="font-medium text-sm truncate">{save.playerName}</p>
-                    </div>
-                    <p className="text-xs text-zinc-500 mt-0.5">
-                      {save.worldName} · Usia {save.playerAge} · Bab {save.chapter}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[10px] text-zinc-600">{formatTimePlayed(save.playTime)}</span>
-                      <span className="text-[10px] text-zinc-600">·</span>
-                      <span className="text-[10px] text-zinc-600">{new Date(save.updatedAt).toLocaleDateString('id-ID')}</span>
-                    </div>
-                  </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => continueGame(save.id)} className="px-3 py-1.5 bg-indigo-600/80 hover:bg-indigo-500 text-xs font-medium rounded transition-all">Main</button>
-                    <button onClick={async () => { try { const { loadGame } = await import('@/lib/storage'); const data = await loadGame(save.id); if (data) { const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `ai-multiverse-${save.playerName}-${Date.now()}.json`; a.click(); URL.revokeObjectURL(url); } } catch { alert('Gagal export'); } }} className="px-3 py-1.5 border border-zinc-700 hover:border-zinc-500 text-xs rounded transition-all">Export</button>
-                    <button onClick={() => { if (confirm('Hapus save ini?')) deleteSaveGame(save.id); }} className="px-3 py-1.5 bg-red-900/50 hover:bg-red-800/70 text-xs rounded transition-all">Hapus</button>
-                  </div>
+              {/* Quick Save Slots (0-9) */}
+              <div className="mb-4">
+                <h3 className="text-xs font-medium text-zinc-500 mb-2 px-2">Quick Save (F1-F10)</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {[0,1,2,3,4,5,6,7,8,9].map(slotIdx => {
+                    const slot = saveSlots.find(s => s.slotIndex === slotIdx)
+                    return (
+                      <button
+                        key={slotIdx}
+                        onClick={() => slot ? continueGame(slot.id) : newGame()}
+                        className={`p-3 rounded-lg border transition-all text-left ${slot 
+                          ? 'bg-zinc-900/50 border-zinc-700 hover:border-zinc-600' 
+                          : 'bg-zinc-900/30 border-zinc-800 border-dashed hover:border-indigo-500/50 text-zinc-500'
+                        }`}
+                        title={slot ? slot.lastAction : 'Kosong - Tekan F1-F10 saat bermain untuk quick save'}
+                      >
+                        <div className="flex items-center gap-1 mb-1">
+                          <span className={`w-1.5 h-1.5 rounded-full ${slot?.isAlive ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                          <span className="text-xs font-medium truncate">{slot?.name || `Slot ${slotIdx + 1}`}</span>
+                        </div>
+                        {slot ? (
+                          <>
+                            <p className="text-[10px] text-zinc-500 truncate">{slot.worldName}</p>
+                            <div className="flex items-center gap-1 mt-1 text-[9px] text-zinc-600">
+                              <span>Lv.{slot.level || 1}</span>
+                              <span>·</span>
+                              <span>Bab {slot.chapter}</span>
+                              <span>·</span>
+                              <span>{formatTimePlayed(slot.playTime)}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-[10px] text-zinc-600">Kosong</p>
+                        )}
+                      </button>
+                    )
+                  })}
                 </div>
-              ))}
+              </div>
+
+              {/* Custom Save Slots (10-14) */}
+              <div className="mb-4">
+                <h3 className="text-xs font-medium text-zinc-500 mb-2 px-2">Custom Save</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
+                  {[0,1,2,3,4].map(customIdx => {
+                    const slot = saveSlots.find(s => s.slotIndex === 10 + customIdx)
+                    return (
+                      <button
+                        key={customIdx}
+                        onClick={() => slot ? continueGame(slot.id) : newGame()}
+                        className={`p-3 rounded-lg border transition-all text-left ${slot 
+                          ? 'bg-zinc-900/50 border-zinc-700 hover:border-zinc-600' 
+                          : 'bg-zinc-900/30 border-zinc-800 border-dashed hover:border-indigo-500/50 text-zinc-500'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1 mb-1">
+                          <span className={`w-1.5 h-1.5 rounded-full ${slot?.isAlive ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                          <span className="text-xs font-medium truncate">{slot?.name || `Custom ${customIdx + 1}`}</span>
+                        </div>
+                        {slot ? (
+                          <>
+                            <p className="text-[10px] text-zinc-500 truncate">{slot.worldName}</p>
+                            <div className="flex items-center gap-1 mt-1 text-[9px] text-zinc-600">
+                              <span>Lv.{slot.level || 1}</span>
+                              <span>·</span>
+                              <span>Bab {slot.chapter}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-[10px] text-zinc-600">Kosong</p>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Auto Save Slot */}
+              <div className="mb-4">
+                <h3 className="text-xs font-medium text-zinc-500 mb-2 px-2">Auto Save</h3>
+                <div className="grid grid-cols-1 gap-2">
+                  {(() => {
+                    const autoSlot = saveSlots.find(s => s.slotIndex === 99)
+                    if (!autoSlot) return (
+                      <div className="p-3 bg-zinc-900/30 border border-zinc-800 border-dashed rounded-lg text-center text-zinc-500 text-sm">
+                        Belum ada auto-save (otomatis setiap 60 detik saat tidak dalam combat)
+                      </div>
+                    )
+                    return (
+                      <button onClick={() => continueGame(autoSlot.id)} className="p-3 bg-zinc-900/50 border border-zinc-700 hover:border-zinc-600 rounded-lg transition-all text-left">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                          <span className="text-xs font-medium text-indigo-300">Auto Save</span>
+                        </div>
+                        <p className="text-[10px] text-zinc-500 truncate">{autoSlot.worldName}</p>
+                        <div className="flex items-center gap-2 mt-1 text-[9px] text-zinc-600">
+                          <span>Lv.{autoSlot.level || 1}</span>
+                          <span>·</span>
+                          <span>Bab {autoSlot.chapter}</span>
+                          <span>·</span>
+                          <span>{formatTimePlayed(autoSlot.playTime)}</span>
+                          <span>·</span>
+                          <span>{new Date(autoSlot.updatedAt).toLocaleString('id-ID')}</span>
+                        </div>
+                      </button>
+                    )
+                  })()}
+                </div>
+              </div>
+
+              {/* Import/Export Actions */}
+              <div className="flex gap-2 pt-2 border-t border-zinc-800">
+                <button onClick={handleImport} className="flex-1 px-3 py-2 border border-zinc-700 hover:border-zinc-500 text-xs rounded transition-all">
+                  Import Save
+                </button>
+                <button onClick={loadAutoSave} className="flex-1 px-3 py-2 bg-amber-600/30 hover:bg-amber-600/50 border border-amber-600/30 text-xs font-medium text-amber-300 rounded transition-all">
+                  Load Auto Save
+                </button>
+              </div>
             </div>
           )}
         </div>

@@ -253,3 +253,19 @@ export interface SaveSlotMeta {
   isQuickSave: boolean
   lastAction?: string // Last player action for context
 }
+
+export interface SaveSlot extends SaveSlotMeta {
+  id: string // Game save ID
+  createdAt: number
+  updatedAt: number
+  playerName: string
+  playerAge: number
+  worldName: string
+  chapter: number
+  playTime: number
+  isAlive: boolean
+  location?: string
+  level?: number
+  season?: string
+  weather?: string
+}

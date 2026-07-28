@@ -1,10 +1,10 @@
 'use client'
 
 import { createContext, useContext, useCallback, useRef, useState, useEffect } from 'react'
-import type { GameState, StoryLog, CombatState, CombatEnemy, CombatLogEntry } from '@/lib/types'
+import type { GameState, StoryLog, CombatState, CombatEnemy, CombatLogEntry, SaveSlot } from '@/lib/types'
 import { createInitialState, calculatePlayerMaxHp, calculatePlayerMaxMana, calculatePlayerAttack, calculatePlayerDefense, calculateXpToNext, addXp, type SaveSlotMeta } from '@/lib/game'
 import { callAI, buildGamePrompt } from '@/lib/ai'
-import { saveGame, loadGame, listSaves, deleteSave, type SaveMeta } from '@/lib/storage'
+import { saveGame, loadGame, listSaves, deleteSave, type SaveMeta, quickSave, autoSave, getQuickSaveSlots, getCustomSaveSlots, getAutoSaveSlot, saveToSlot, loadFromSlot, listSaveSlots } from '@/lib/storage'
 import { initAudio, autoSwitchAmbient, playLevelUpSFX, playDamageSFX, playHealSFX, playQuestSFX, playCombatStartSFX, playCombatEndSFX, playCoinSFX, playMagicSFX, playClickSFX, playNotificationSFX } from '@/lib/audio'
 import type { Achievement } from '@/lib/types'
 
@@ -13,6 +13,7 @@ interface GameContextType {
   isLoading: boolean
   error: string | null
   saves: SaveMeta[]
+  saveSlots: SaveSlot[]
   newGame: () => Promise<void>
   continueGame: (id: string) => Promise<void>
   saveCurrentGame: (saveSlot?: SaveSlotMeta) => Promise<void>
@@ -21,6 +22,13 @@ interface GameContextType {
   submitAction: (action: string) => Promise<void>
   exportSave: () => Promise<void>
   importSave: (json: string) => Promise<void>
+  // Save slots
+  quickSaveAction: (lastAction?: string) => Promise<void>
+  quickLoad: (slotIndex: number) => Promise<void>
+  saveToCustomSlot: (slotIndex: number, name?: string) => Promise<void>
+  loadCustomSlot: (slotIndex: number) => Promise<void>
+  loadAutoSave: () => Promise<void>
+  refreshSaveSlots: () => Promise<void>
   // Combat
   startCombat: (enemy: CombatEnemy) => void
   combatAction: (action: 'attack' | 'skill' | 'item' | 'flee', skillId?: string, itemId?: string) => Promise<void>
@@ -40,12 +48,141 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saves, setSaves] = useState<SaveMeta[]>([])
+  const [saveSlots, setSaveSlots] = useState<SaveSlot[]>([])
   const gameRef = useRef(gameState)
 
   useEffect(() => { gameRef.current = gameState }, [gameState])
 
   const refreshSaves = useCallback(async () => {
     setSaves(await listSaves())
+  }, [])
+
+  const refreshSaveSlots = useCallback(async () => {
+    setSaveSlots(await listSaveSlots())
+  }, [])
+
+  // Auto-save timer (every 60 seconds)
+  useEffect(() => {
+    if (!gameRef.current) return
+    const interval = setInterval(async () => {
+      const state = gameRef.current
+      if (state && state.isAlive && !state.combat?.inCombat) {
+        await autoSave(state)
+        await refreshSaveSlots()
+      }
+    }, 60000)
+    return () => clearInterval(interval)
+  }, [refreshSaveSlots])
+
+  // Keyboard shortcuts for quick save/load (F1-F10)
+  useEffect(() => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      const state = gameRef.current
+      if (!state || isLoading) return
+
+      // Quick save: F1-F10 (or Ctrl+1 through Ctrl+0)
+      if (e.key.startsWith('F') && e.key.length <= 3) {
+        const fNum = parseInt(e.key.slice(1))
+        if (fNum >= 1 && fNum <= 10) {
+          e.preventDefault()
+          if (e.shiftKey) {
+            // Shift+F1-F10 = Quick Load
+            await quickLoad(fNum - 1)
+          } else {
+            // F1-F10 = Quick Save
+            await quickSaveAction(`Quick save slot ${fNum}`)
+          }
+        }
+      }
+
+      // Ctrl+S = Quick Save to slot 1
+      if (e.ctrlKey && e.key === 's') {
+        e.preventDefault()
+        await quickSaveAction('Quick save (Ctrl+S)')
+      }
+
+      // Ctrl+L = Quick Load from slot 1
+      if (e.ctrlKey && e.key === 'l') {
+        e.preventDefault()
+        await quickLoad(0)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isLoading])
+
+  const quickSaveAction = useCallback(async (lastAction?: string) => {
+    const state = gameRef.current
+    if (!state) return
+    await quickSave(state, lastAction)
+    await refreshSaveSlots()
+  }, [refreshSaveSlots])
+
+  const quickLoad = useCallback(async (slotIndex: number) => {
+    const state = gameRef.current
+    if (!state) return
+    setIsLoading(true)
+    try {
+      const loaded = await loadFromSlot(slotIndex)
+      if (loaded) {
+        setGameState(loaded)
+        initAudio()
+        autoSwitchAmbient(loaded.world, { inCombat: loaded.combat?.inCombat ?? false })
+      }
+    } catch (e) {
+      setError(`Gagal load quick save: ${e instanceof Error ? e.message : String(e)}`)
+    }
+    setIsLoading(false)
+  }, [])
+
+  const saveToCustomSlot = useCallback(async (slotIndex: number, name?: string) => {
+    const state = gameRef.current
+    if (!state) return
+    const customSlotIndex = 10 + slotIndex // Custom slots start at 10
+    await saveToSlot(customSlotIndex, state, { 
+      isQuickSave: false, 
+      name: name || `Custom Save ${slotIndex + 1}` 
+    })
+    await refreshSaveSlots()
+  }, [refreshSaveSlots])
+
+  const loadCustomSlot = useCallback(async (slotIndex: number) => {
+    const state = gameRef.current
+    if (!state) return
+    setIsLoading(true)
+    try {
+      const customSlotIndex = 10 + slotIndex
+      const loaded = await loadFromSlot(customSlotIndex)
+      if (loaded) {
+        setGameState(loaded)
+        initAudio()
+        autoSwitchAmbient(loaded.world, { inCombat: loaded.combat?.inCombat ?? false })
+      }
+    } catch (e) {
+      setError(`Gagal load custom save: ${e instanceof Error ? e.message : String(e)}`)
+    }
+    setIsLoading(false)
+  }, [])
+
+  const loadAutoSave = useCallback(async () => {
+    const state = gameRef.current
+    if (!state) return
+    setIsLoading(true)
+    try {
+      const autoSlot = await getAutoSaveSlot()
+      if (autoSlot) {
+        const loaded = await loadFromSlot(autoSlot.slotIndex)
+        if (loaded) {
+          setGameState(loaded)
+          initAudio()
+          autoSwitchAmbient(loaded.world, { inCombat: loaded.combat?.inCombat ?? false })
+        }
+      }
+    } catch (e) {
+      setError(`Gagal load auto save: ${e instanceof Error ? e.message : String(e)}`)
+    }
+    setIsLoading(false)
   }, [])
 
   // ── NEW GAME ──
@@ -791,9 +928,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <GameContext.Provider value={{
-      gameState, isLoading, error, saves,
+      gameState, isLoading, error, saves, saveSlots,
       newGame, continueGame, saveCurrentGame, deleteSaveGame,
       refreshSaves, submitAction, exportSave, importSave: importSaveFn,
+      // Save Slots
+      quickSaveAction, quickLoad, saveToCustomSlot, loadCustomSlot, loadAutoSave, refreshSaveSlots,
       // Combat
       startCombat, combatAction, endCombat,
     }}>

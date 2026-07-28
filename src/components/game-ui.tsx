@@ -447,6 +447,20 @@ export function GameUI({ gameState, error }: GameUIProps) {
             )}
             {/* Audio Settings Toggle */}
             <AudioSettingsButton />
+            {/* Quick Save/Load Hint */}
+            <div className="hidden md:flex items-center gap-1 px-2 py-1 bg-zinc-800/30 border border-zinc-700 rounded text-[10px] text-zinc-500">
+              <kbd className="px-1.5 py-0.5 bg-zinc-700 rounded border border-zinc-600">F1-F10</kbd>
+              <span>Quick Save</span>
+              <span className="text-zinc-700">|</span>
+              <kbd className="px-1.5 py-0.5 bg-zinc-700 rounded border border-zinc-600">Shift+F1-F10</kbd>
+              <span>Quick Load</span>
+              <span className="text-zinc-700">|</span>
+              <kbd className="px-1.5 py-0.5 bg-zinc-700 rounded border border-zinc-600">Ctrl+S</kbd>
+              <span>Save</span>
+              <span className="text-zinc-700">|</span>
+              <kbd className="px-1.5 py-0.5 bg-zinc-700 rounded border border-zinc-600">Ctrl+L</kbd>
+              <span>Load</span>
+            </div>
           </div>
         </div>
 
