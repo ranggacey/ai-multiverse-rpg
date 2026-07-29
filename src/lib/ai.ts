@@ -156,6 +156,10 @@ JOURNAL_ENTRY: [judul] | [kategori] | [konten] — saat pemain menulis journal
 FACTION_REP: [faction_id] | [nilai baru] — saat reputasi faksi berubah
 FACTION_RANK: [faction_id] | [rank baru] — saat rank faksi naik/turun
 
+=== CRAFTING LABELS ===
+CRAFT_UNLOCK: [recipe_id] | [recipe_name] — saat resep crafting baru terbuka
+CRAFT_ITEM: [item_name] | [quantity] — saat pemain berhasil membuat item
+
 Contoh label di tengah narasi:
 "...Kael berjalan menyusuri jalan setapak. CUACA: hujan WAKTU: malam USIA: 10 LOKASI: Desa Oakvale STAT:str:6,agi:5,int:5,cha:5 NPC: Sersan Varian | netral | Seorang veteran perang berjanggut tebal QUEST: Berburu Serigala | Bunuh 3 serigala di hutan utara | side QUEST_PROGRESS: Berburu Serigala | 1 | 3 COMPANION_JOIN: Elara | Elf | Mage | 60 | Seorang penyihir yatim piatu yang mencari saudaranya CODEX_DISCOVER: entry_001 | world | Hutan Elderwood | Hutan purba yang dijaga roh-langit"
 
@@ -174,7 +178,8 @@ export function buildGamePrompt(
   companions?: any[],
   codex?: any,
   journal?: any,
-  factions?: any
+  factions?: any,
+  crafting?: any
 ): { role: string; content: string }[] {
   const activeCompanions = companions?.filter((c: any) => c.isActive) || []
   const companionContext = activeCompanions.length > 0
@@ -193,6 +198,10 @@ export function buildGamePrompt(
     ? `FAKSI: ${Object.entries(factions.playerReputation).map(([id, rep]) => `${id}: ${rep}`).join(', ')}`
     : 'FAKSI: Netral'
 
+  const craftingContext = crafting && crafting.unlockedRecipes?.length > 0
+    ? `CRAFTING: ${crafting.unlockedRecipes?.length || 0} resep terbuka`
+    : 'CRAFTING: Belum ada'
+
   return [
     { role: 'system', content: GAME_MASTER_PROMPT },
     { role: 'system', content: `DUNIA: ${world?.name || 'Unknown'} | ${world?.description || ''}` },
@@ -201,6 +210,7 @@ export function buildGamePrompt(
     { role: 'system', content: codexContext },
     { role: 'system', content: journalContext },
     { role: 'system', content: factionContext },
+    { role: 'system', content: craftingContext },
     { role: 'system', content: `CATATAN: ${worldMemory || ''}` },
     { role: 'system', content: `SEBELUMNYA: ${recentNarration.slice(-500)}` },
     { role: 'user', content: `${action}` },

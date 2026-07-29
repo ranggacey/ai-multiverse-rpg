@@ -253,6 +253,72 @@ export interface FactionBenefit {
   value?: number
 }
 
+// ============================================================
+// CRAFTING SYSTEM
+// ============================================================
+export interface CraftingState {
+  recipes: CraftRecipe[]
+  unlockedRecipes: string[] // Recipe IDs
+  knownTechniques: CraftTechnique[]
+  craftingStations: CraftStation[]
+}
+
+export interface CraftRecipe {
+  id: string
+  name: string
+  description: string
+  category: 'weapon' | 'armor' | 'potion' | 'tool' | 'food' | 'material' | 'magic'
+  difficulty: number // 1-100
+  craftingTime: number // seconds
+  yield: number // how many produced
+  
+  ingredients: CraftIngredient[]
+  tools?: string[] // Required tool IDs
+  station?: string // Required station ID
+  
+  result: {
+    itemId: string
+    name: string
+    type: string
+    rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
+    stats?: Record<string, number>
+    description?: string
+  }
+  
+  // Skill requirements
+  requiredSkills?: { skillId: string; level: number }[]
+  // Unlock conditions
+  unlockCondition?: string
+}
+
+export interface CraftIngredient {
+  itemId: string
+  name: string
+  quantity: number
+  optional?: boolean
+}
+
+export interface CraftTechnique {
+  id: string
+  name: string
+  description: string
+  bonuses: {
+    speedBonus?: number
+    qualityBonus?: number
+    materialSave?: number
+  }
+  unlockRecipeIds?: string[]
+}
+
+export interface CraftStation {
+  id: string
+  name: string
+  location: string
+  type: 'forge' | 'alchemy' | 'cooking' | 'workbench' | 'enchanting' | 'tailoring'
+  unlocked: boolean
+  level: number
+}
+
 export interface Quest {
   id: string
   name: string
@@ -455,6 +521,9 @@ export interface GameState {
 
   // Faction / Reputation
   factions?: FactionState
+
+  // Crafting System
+  crafting?: CraftingState
 }
 
 export interface SaveSlotMeta {

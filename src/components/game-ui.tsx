@@ -5,7 +5,7 @@ import { WEATHER_ICONS, TIME_ICONS } from '@/lib/types'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useGame } from '@/lib/game-provider'
 import Biography from '@/app/game/biography'
-import { Heart, Zap, Swords, Users, Scroll, Star, Package, Skull, Trophy, Clock, Sparkles, ChevronRight, Menu, X, Coins, Volume2, VolumeX, Music, Speaker, BookOpen, Shield } from 'lucide-react'
+import { Heart, Zap, Swords, Users, Scroll, Star, Package, Skull, Trophy, Clock, Sparkles, ChevronRight, Menu, X, Coins, Volume2, VolumeX, Music, Speaker, BookOpen, Shield, Hammer } from 'lucide-react'
 import { getSettings, updateSettings, setAmbientTrack } from '@/lib/audio'
 import type { AudioSettings } from '@/lib/audio'
 
@@ -48,6 +48,25 @@ function questBadgeColor(type: string) {
     case 'personal': return 'bg-purple-600/30 text-purple-300 border-purple-600/40'
     default: return 'bg-sky-600/30 text-sky-300 border-sky-600/40'
   }
+}
+
+// ── Achievement toast ──
+function AchievementToast({ achievement, onDone }: { achievement: { icon: string; name: string; description: string }; onDone: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 4000)
+    return () => clearTimeout(t)
+  }, [onDone])
+
+  return (
+    <div className="achievement-toast fixed top-4 right-4 z-50 px-4 py-3 bg-amber-900/80 border border-amber-500/30 rounded-lg backdrop-blur-md shadow-lg shadow-amber-900/30 max-w-sm animate-in slide-in-from-right">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-lg">{achievement.icon}</span>
+        <p className="text-xs text-amber-200 font-medium">🏆 Achievement Unlocked!</p>
+      </div>
+      <p className="text-sm text-zinc-100 font-medium">{achievement.name}</p>
+      <p className="text-xs text-zinc-400">{achievement.description}</p>
+    </div>
+  )
 }
 
 // ── World event toast ──
@@ -315,12 +334,14 @@ export function GameUI({ gameState, error }: GameUIProps) {
   const [input, setInput] = useState('')
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
   const [worldEvents, setWorldEvents] = useState<string[]>([])
+  const [achievements, setAchievements] = useState<{ icon: string; name: string; description: string }[]>([])
   const [showInventory, setShowInventory] = useState(false)
   const [showSkills, setShowSkills] = useState(false)
   const [showQuests, setShowQuests] = useState(false)
   const [showCodex, setShowCodex] = useState(false)
   const [showJournal, setShowJournal] = useState(false)
   const [showFactions, setShowFactions] = useState(false)
+  const [showCrafting, setShowCrafting] = useState(false)
 
   // Quick action cooldowns
   const [cooldowns, setCooldowns] = useState<Record<string, number>>({})
@@ -373,8 +394,32 @@ export function GameUI({ gameState, error }: GameUIProps) {
     }
   }, [gameState.storyLog])
 
+  // Detect achievements from gameState
+  useEffect(() => {
+    const currentAchievements = gameState.achievements || []
+    // Check for new achievements by comparing with previous state
+    // For now, we detect achievements from storyLog for battle victories
+    const latestLog = gameState.storyLog[gameState.storyLog.length - 1]
+    if (latestLog && latestLog.type === 'battle' && latestLog.content.includes('menang')) {
+      // Check if this is first battle win
+      const battleWins = gameState.storyLog.filter(l => l.type === 'battle' && l.content.includes('menang')).length
+      if (battleWins === 1) {
+        setAchievements(prev => {
+          if (!prev.find(a => a.name === 'Pertumpahan Darah')) {
+            return [...prev, { icon: '⚔️', name: 'Pertumpahan Darah', description: 'Menang dalam pertarungan pertama' }]
+          }
+          return prev
+        })
+      }
+    }
+  }, [gameState.storyLog])
+
   const removeWorldEvent = (idx: number) => {
     setWorldEvents(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  const removeAchievement = (idx: number) => {
+    setAchievements(prev => prev.filter((_, i) => i !== idx))
   }
 
   // Submit action
@@ -413,7 +458,7 @@ export function GameUI({ gameState, error }: GameUIProps) {
     }
   }
 
-  const { player, world, storyLog, combat, npcs, quests } = gameState
+  const { player, world, storyLog, combat, npcs, quests, crafting } = gameState
   const inCombat = combat?.inCombat && combat.enemy
   const w = world
   const weatherIcon = w?.weather ? WEATHER_ICONS[w.weather as Weather] || '☀️' : '☀️'
@@ -427,6 +472,11 @@ export function GameUI({ gameState, error }: GameUIProps) {
       {/* World event toasts */}
       {worldEvents.map((evt, i) => (
         <WorldEventToast key={`${evt}-${i}`} message={evt} onDone={() => removeWorldEvent(i)} />
+      ))}
+
+      {/* Achievement toasts */}
+      {achievements.map((ach, i) => (
+        <AchievementToast key={`${ach.name}-${i}`} achievement={ach} onDone={() => removeAchievement(i)} />
       ))}
 
       {/* ── MAIN PANEL ── */}
@@ -614,6 +664,8 @@ export function GameUI({ gameState, error }: GameUIProps) {
           setShowJournal={setShowJournal}
           showFactions={showFactions}
           setShowFactions={setShowFactions}
+          showCrafting={showCrafting}
+          setShowCrafting={setShowCrafting}
           weatherIcon={weatherIcon}
           timeIcon={timeIcon}
         />
@@ -646,6 +698,8 @@ export function GameUI({ gameState, error }: GameUIProps) {
               setShowJournal={setShowJournal}
               showFactions={showFactions}
               setShowFactions={setShowFactions}
+              showCrafting={showCrafting}
+              setShowCrafting={setShowCrafting}
               weatherIcon={weatherIcon}
               timeIcon={timeIcon}
             />
@@ -678,6 +732,8 @@ function SidebarContent({
   setShowJournal,
   showFactions,
   setShowFactions,
+  showCrafting,
+  setShowCrafting,
   weatherIcon,
   timeIcon,
 }: {
@@ -696,10 +752,12 @@ function SidebarContent({
   setShowJournal: (v: boolean) => void
   showFactions: boolean
   setShowFactions: (v: boolean) => void
+  showCrafting: boolean
+  setShowCrafting: (v: boolean) => void
   weatherIcon: string
   timeIcon: string
 }) {
-  const { player, world, npcs, quests, combat, currentChapter, playTime, companions, party, codex, journal, factions } = gameState
+  const { player, world, npcs, quests, combat, currentChapter, playTime, companions, party, codex, journal, factions, crafting } = gameState
   const inCombat = combat?.inCombat
   const activeCompanions = (companions || []).filter((c: any) => c.isActive)
   const reserveCompanions = (companions || []).filter((c: any) => !c.isActive)
@@ -1053,6 +1111,74 @@ function SidebarContent({
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── CRAFTING ── */}
+      {crafting && (
+        <div>
+          <button onClick={() => setShowCrafting(!showCrafting)} className="flex items-center gap-1.5 text-xs font-medium text-zinc-300 mb-2 w-full text-left">
+            <Hammer size={14} className="text-orange-400" /> Crafting ({crafting.unlockedRecipes?.length || 0})
+            <ChevronRight size={12} className={`ml-auto transition-transform ${showCrafting ? 'rotate-90' : ''}`} />
+          </button>
+          {showCrafting && (
+            <div className="space-y-1">
+              {/* Category filter */}
+              <div className="flex flex-wrap gap-1 mb-2">
+                {['weapon', 'armor', 'potion', 'food', 'tool', 'magic'].map((cat: string) => (
+                  <button key={cat} className="text-[9px] px-1.5 py-0.5 bg-zinc-800/50 hover:bg-zinc-700/50 text-zinc-500 hover:text-zinc-300 rounded transition-colors capitalize">
+                    {cat}
+                  </button>
+                ))}
+              </div>
+              {/* Recipe list */}
+              {crafting.recipes?.filter((r: any) => crafting.unlockedRecipes?.includes(r.id)).slice(0, 6).map((recipe: any) => (
+                <div key={recipe.id} className="px-2 py-1.5 bg-orange-900/10 border border-orange-800/20 rounded text-xs">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-zinc-200 font-medium">{recipe.name}</span>
+                    <span className={`text-[9px] px-1 rounded ${
+                      recipe.rarity === 'legendary' ? 'bg-orange-600/30 text-orange-400' :
+                      recipe.rarity === 'epic' ? 'bg-purple-600/30 text-purple-400' :
+                      recipe.rarity === 'rare' ? 'bg-blue-600/30 text-blue-400' :
+                      recipe.rarity === 'uncommon' ? 'bg-green-600/30 text-green-400' :
+                      'bg-zinc-600/30 text-zinc-400'
+                    }`}>
+                      {recipe.rarity}
+                    </span>
+                  </div>
+                  <p className="text-[9px] text-zinc-500 mb-1">{recipe.description}</p>
+                  {/* Ingredients */}
+                  <div className="flex flex-wrap gap-1">
+                    {recipe.ingredients?.slice(0, 3).map((ing: any, i: number) => (
+                      <span key={i} className="text-[8px] px-1 bg-zinc-800/50 rounded text-zinc-400">
+                        {ing.quantity}x {ing.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {(!crafting.unlockedRecipes || crafting.unlockedRecipes.length === 0) && (
+                <p className="text-[9px] text-zinc-600 italic px-2">Belum ada resep terbuka</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── ACHIEVEMENTS ── */}
+      {((gameState.achievements?.length || 0) > 0) && (
+        <div>
+          <h4 className="flex items-center gap-1.5 text-xs font-medium text-zinc-300 mb-2">
+            <Trophy size={14} className="text-amber-400" /> Achievements ({(gameState.achievements?.length || 0)})
+          </h4>
+          <div className="space-y-1">
+            {gameState.achievements?.slice(0, 5).map((ach: any, i: number) => (
+              <div key={ach.id || i} className="flex items-center gap-2 px-2 py-1.5 bg-amber-900/10 border border-amber-800/20 rounded text-xs">
+                <span className="text-base">{ach.icon}</span>
+                <span className="text-zinc-200 flex-1">{ach.name}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

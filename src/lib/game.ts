@@ -1,4 +1,4 @@
-import type { GameState, CombatState, SaveSlotMeta } from './types'
+import type { GameState, CombatState, SaveSlotMeta, CraftRecipe, CraftTechnique, CraftStation } from './types'
 
 export type { SaveSlotMeta }
 
@@ -82,7 +82,149 @@ export function createInitialState(): GameState {
       factions: [],
       playerReputation: {},
     },
+
+    // Crafting System
+    crafting: {
+      recipes: getDefaultRecipes(),
+      unlockedRecipes: ['recipe_iron_sword', 'recipe_health_potion', 'recipe_leather_armor'],
+      knownTechniques: [
+        { id: 'basic_forging', name: 'Basic Forging', description: 'Basic metalworking', bonuses: { speedBonus: 10 }, unlockRecipeIds: ['recipe_iron_sword'] },
+        { id: 'basic_alchemy', name: 'Basic Alchemy', description: 'Basic potion brewing', bonuses: { qualityBonus: 10 }, unlockRecipeIds: ['recipe_health_potion'] },
+      ],
+      craftingStations: [
+        { id: 'player_hands', name: 'Bare Hands', location: 'any', type: 'workbench', unlocked: true, level: 1 },
+        { id: 'campfire', name: 'Campfire', location: 'outdoor', type: 'cooking', unlocked: true, level: 1 },
+      ],
+    },
   }
+}
+
+// Default crafting recipes
+function getDefaultRecipes(): CraftRecipe[] {
+  return [
+    // Weapons
+    {
+      id: 'recipe_iron_sword',
+      name: 'Iron Sword',
+      description: 'A basic sword forged from iron',
+      category: 'weapon',
+      difficulty: 15,
+      craftingTime: 60,
+      yield: 1,
+      ingredients: [
+        { itemId: 'iron_ingot', name: 'Iron Ingot', quantity: 3 },
+        { itemId: 'leather_strip', name: 'Leather Strip', quantity: 1 },
+      ],
+      tools: ['hammer', 'tongs'],
+      result: { itemId: 'iron_sword', name: 'Iron Sword', type: 'weapon', rarity: 'common', stats: { attack: 12 }, description: 'A sturdy iron sword' },
+    },
+    {
+      id: 'recipe_wooden_staff',
+      name: 'Wooden Staff',
+      description: 'A simple magical focus',
+      category: 'weapon',
+      difficulty: 10,
+      craftingTime: 30,
+      yield: 1,
+      ingredients: [
+        { itemId: 'hardwood', name: 'Hardwood', quantity: 2 },
+        { itemId: 'common_orb', name: 'Common Orb', quantity: 1 },
+      ],
+      result: { itemId: 'wooden_staff', name: 'Wooden Staff', type: 'weapon', rarity: 'common', stats: { attack: 5, int: 3 }, description: 'A basic magical focus' },
+    },
+    // Armor
+    {
+      id: 'recipe_leather_armor',
+      name: 'Leather Armor',
+      description: 'Basic protective gear',
+      category: 'armor',
+      difficulty: 12,
+      craftingTime: 45,
+      yield: 1,
+      ingredients: [
+        { itemId: 'leather', name: 'Leather', quantity: 4 },
+        { itemId: 'iron_ingot', name: 'Iron Ingot', quantity: 1 },
+      ],
+      result: { itemId: 'leather_armor', name: 'Leather Armor', type: 'armor', rarity: 'common', stats: { defense: 8 }, description: 'Light leather protection' },
+    },
+    // Potions
+    {
+      id: 'recipe_health_potion',
+      name: 'Health Potion',
+      description: 'Restores health',
+      category: 'potion',
+      difficulty: 8,
+      craftingTime: 20,
+      yield: 2,
+      ingredients: [
+        { itemId: 'healing_herb', name: 'Healing Herb', quantity: 2 },
+        { itemId: 'spring_water', name: 'Spring Water', quantity: 1 },
+      ],
+      station: 'alchemy',
+      result: { itemId: 'health_potion', name: 'Health Potion', type: 'consumable', rarity: 'common', stats: { healAmount: 30 }, description: 'Restores 30 HP' },
+    },
+    {
+      id: 'recipe_mana_potion',
+      name: 'Mana Potion',
+      description: 'Restores mana',
+      category: 'potion',
+      difficulty: 10,
+      craftingTime: 25,
+      yield: 2,
+      ingredients: [
+        { itemId: 'mana_herb', name: 'Mana Herb', quantity: 2 },
+        { itemId: 'spring_water', name: 'Spring Water', quantity: 1 },
+      ],
+      station: 'alchemy',
+      result: { itemId: 'mana_potion', name: 'Mana Potion', type: 'consumable', rarity: 'common', stats: { manaCost: -25 }, description: 'Restores 25 MP' },
+    },
+    // Food
+    {
+      id: 'recipe_roasted_meat',
+      name: 'Roasted Meat',
+      description: 'Restores stamina',
+      category: 'food',
+      difficulty: 5,
+      craftingTime: 15,
+      yield: 2,
+      ingredients: [
+        { itemId: 'raw_meat', name: 'Raw Meat', quantity: 1 },
+      ],
+      station: 'cooking',
+      result: { itemId: 'roasted_meat', name: 'Roasted Meat', type: 'consumable', rarity: 'common', stats: { healAmount: 15 }, description: 'Restores 15 HP' },
+    },
+    // Tools
+    {
+      id: 'recipe_climbing_pick',
+      name: 'Climbing Pick',
+      description: 'For climbing steep surfaces',
+      category: 'tool',
+      difficulty: 8,
+      craftingTime: 20,
+      yield: 1,
+      ingredients: [
+        { itemId: 'iron_ingot', name: 'Iron Ingot', quantity: 2 },
+        { itemId: 'rope', name: 'Rope', quantity: 1 },
+      ],
+      result: { itemId: 'climbing_pick', name: 'Climbing Pick', type: 'tool', rarity: 'common', description: 'Enables climbing' },
+    },
+    // Magic
+    {
+      id: 'recipe_fire_scroll',
+      name: 'Fire Scroll',
+      description: 'A scroll containing fire magic',
+      category: 'magic',
+      difficulty: 20,
+      craftingTime: 40,
+      yield: 1,
+      ingredients: [
+        { itemId: 'blank_scroll', name: 'Blank Scroll', quantity: 1 },
+        { itemId: 'fire_essence', name: 'Fire Essence', quantity: 1 },
+        { itemId: 'common_orb', name: 'Common Orb', quantity: 1 },
+      ],
+      result: { itemId: 'fire_scroll', name: 'Fire Scroll', type: 'magic', rarity: 'uncommon', stats: { spellType: 'fire' as const }, description: 'Casts Fireball' },
+    },
+  ] as CraftRecipe[]
 }
 
 export function generateSaveName(player: any): string {
